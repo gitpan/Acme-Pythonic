@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 
@@ -59,3 +59,12 @@ my @vars = ()
 while my ($key, $value) = each %foo:::
     push @vars, $key
 Test::More::is_deeply(\@vars, ['bar'])
+package main
+
+# ----------------------------------------------------------------------
+
+$i = 1
+while:
+    ++$i
+    last if $i == 10
+is $i, 10

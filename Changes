@@ -1,5 +1,9 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.14
+    - "while:" is now correctly converted to "while ()"
+    - Added support for &-prototyped subroutines
+
 0.13 Sun May 30 00:37:12 2004
     - Added manhattan_intersection() implementation to t/algorithms.t
     - Fixed: Broken code was being generated in lines with comments
@@ -8,29 +12,29 @@ Revision history for Perl extension Acme::Pythonic.
     - Handling of continuation lines simplified.
 
 0.12 Sat May 29 02:23:53 2004
-     - Added bubblesort in t/algorithms.t
-     - The code that inserts " {"s was breaking $#array, fixed.
-     - Changed SYNOPSIS.
-     - Fixed the documentation about backslashes in lines with comments.
-     - Fixed the link to LIMITATIONS.
+    - Added bubblesort in t/algorithms.t
+    - The code that inserts " {"s was breaking $#array, fixed.
+    - Changed SYNOPSIS.
+    - Fixed the documentation about backslashes in lines with comments.
+    - Fixed the link to LIMITATIONS.
 
 0.11 Fri May 28 01:09:45 2004
-     - Regexps slightly more robust.
-     - Fixed: There was a bug that might prevent the stack from being emptied.
-     - Fixed: Whitespace after backlashes in comments could be modified.
+    - Regexps slightly more robust.
+    - Fixed: There was a bug that might prevent the stack from being emptied.
+    - Fixed: Whitespace after backlashes in comments could be modified.
 
 0.1
-     - More tests
-     - Implicit line joining is more Pythonic
-     - Comments and blank lines are preserved
-     - Genereated code tries to follow perlstyle
-     - Refactoring
+    - More tests
+    - Implicit line joining is more Pythonic
+    - Comments and blank lines are preserved
+    - Genereated code tries to follow perlstyle
+    - Refactoring
 
 0.03 Mon May 24 23:36:55 2004
-     - More tests
-     - pass wasn't being ignored at the beginning of line
-     - Fixed a bug handling fors
-     - More documentation fixes
+    - More tests
+    - pass wasn't being ignored at the beginning of line
+    - Fixed a bug handling fors
+    - More documentation fixes
 
 0.02 Mon May 24 15:31:42 2004
 	- Minor fixes in documentation

@@ -109,9 +109,9 @@ is_deeply \@a, [sort { $a <=> $b } @a]
 # ----------------------------------------------------------------------
 
 
-# These subroutines are ports to Acme::Python from the ones in
+# These subroutines are ports to Acme::Pythonic from the ones in
 # "Mastering Algorithms with Perl" except the last one, which I fixed
-# myself, since the one in the book is buggy.
+# myself. The one in the book is buggy.
 
 sub basic_tree_find:
     my ($tree_link, $target, $cmp) = @_

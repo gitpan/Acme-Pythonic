@@ -2,6 +2,11 @@
 
 use warnings;
 
+package Bar;
+sub bar (&);
+sub foo (&);
+sub twice (&);
+
 use Test::More 'no_plan';
 use Acme::Pythonic debug => 0;
 
@@ -27,12 +32,39 @@ is_deeply \@array, [4, 2, 0]
 
 # ----------------------------------------------------------------------
 
-# Inspired by Acme::Don't
-sub ignore (&):
+$n = 1
+sub foo (&):
+    my $code = shift
+    if defined $code:
+        return 5
+    else:
+        return 7
+
+$n = foo:
     pass
+is $n, 5
+
+# ----------------------------------------------------------------------
 
 $n = 1
-if 1:
-    ignore:
-        $n = 2
-is $n, 1
+sub bar (&):
+    my $code = shift
+    $code->()
+
+$n = bar:
+    2*3
+Test::More::is $n, 6
+
+# ----------------------------------------------------------------------
+
+sub twice (&):
+    my $code = shift
+    $code->()
+    $code->()
+
+$n = "foo"
+twice:
+    $n .= "bar"
+    $n .= "baz"
+
+is $n, "foobarbazbarbaz"

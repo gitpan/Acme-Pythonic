@@ -7,21 +7,15 @@ use 5.008002;
 use strict;
 use warnings;
 
-use vars qw($VERSION $DEBUG %SM);
-$VERSION = '0.13';
+use vars qw($VERSION $DEBUG $CALLER);
+$VERSION = '0.14';
 
 use Text::Tabs;
 
 sub import {
     my ($package, %cfg) = @_;
     $DEBUG = $cfg{debug};
-    # Undocumented, just an idea I'm exploring.
-    if (exists $cfg{'(&)'}) {
-        $cfg{'(&)'} = [$cfg{'(&)'}] unless ref $cfg{'(&)'} eq 'ARRAY';
-    } else {
-        $cfg{'(&)'} = [];
-    }
-    %SM = map { $_ => 1 } ('do', 'sub', 'eval', @{$cfg{'(&)'}});
+    $CALLER = caller()
 }
 
 
@@ -78,7 +72,8 @@ sub uncolonize_and_parenthesize {
         next unless /(:+) (\s* $tc?) $/ox && length($1) % 2;
         next if /^\s*#/; # skip comments
 
-        if (/^\s*($id)\s*:\s*$/o) {
+        # As you know, "while ()" is valid in Perl.
+        if (/^\s*($id)\s*:\s*$/o && $1 ne 'while') {
             # Labels cannot have lower-case letters in Acme::Pythonic.
             s/:\s*$// if $1 =~ /[[:lower:]]/;
             next;
@@ -91,13 +86,14 @@ sub uncolonize_and_parenthesize {
         next if /^\s*sub\b/;
 
         # These need parens after the keyword.
-        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*?) (\s* $tc?) $/$1($2)$3/x;
+        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*?) (\s* $tc?) $/$1($2)$3/ox;
 
         # These may be preceded by a label.
-        next if s/^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*) (\s* $tc?) $/$1($2)$3/ox;
+        next if s{^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*?) (\s* $tc?) $}
+                 { $2 eq '' ? "$1 ()$3" : "$1($2)$3" }oxe;
 
         # Try your best with fors.
-        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*) (\s* $tc?) $/fortype_guesser($1,$2).$3/oxe;
+        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*?) (\s* $tc?) $/fortype_guesser($1,$2).$3/oxe;
     }
 }
 
@@ -160,7 +156,7 @@ sub semicolonize_and_bracketize {
             my ($label) = $$prev_line =~ /(?<![\$\@%&])($id)\s*$/;
             $line =~ s/^\s*pass\s*$//;
             push @stack, {indent => $indent, label => $label};
-            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*(?<!\$)#)/ {/;
+            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*$tc)/ {/o;
         } elsif ($current_indent > $indent) {
             my $close = '';
             while ($current_indent > $indent) {
@@ -168,19 +164,26 @@ sub semicolonize_and_bracketize {
                 pop @stack;
                 $current_indent = @stack ? $stack[-1]{indent} : 0;
                 $close .= "\n" . (' ' x $current_indent) . "}";
-                $close .= ";" if defined $label && exists $SM{$label};
+                $close .= ";" if defined $label && needs_semicolon($label);
             }
             $$prev_line .= $close;
         } elsif (defined $prev_line && $$prev_line !~ /$id:\s*$/o) {
             # Put a semicolon at the right of the previous line but be
             # careful with comments.
-            $$prev_line .= ";" unless $$prev_line =~ s/(?=\s*(?<!\$)#)/;/;
+            $$prev_line .= ";" unless $$prev_line =~ s/(?=\s*$tc)/;/o;
         }
         $prev_line = \$line;
         $prev_indent = $indent;
     }
 }
 
+sub needs_semicolon {
+    my $label = shift;
+    return 1 if $label =~ /^(do|sub|eval)$/;
+    my $proto = prototype("${CALLER}::$label");
+    return 0 if not defined $proto;
+    return $proto =~ /^;?&$/;
+}
 
 # Removes the semicolon and newline in do {}; if EXPR; and friends.
 sub fix_modifiers {
@@ -270,24 +273,6 @@ that list operators can be chained:
         [$_, $foo{$_}]
     keys %foo
 
-and C<&>-prototyped subroutines can be used like this:
-
-    sub mygrep (&@):
-        my $code = shift
-        my @result
-        foreach @_:
-            push @result, $_ if &$code
-        return @result
-
-    @array = mygrep:
-        my $aux = $_
-        $aux *= 3
-        $aux += 1
-        $aux % 2
-    reverse 0..5
-
-Nevertheless support for this has to be improved, see L</LIMITATIONS>.
-
 =head2 C<do/while>-like constructs
 
 Acme::Pythonic tries to detect loop modifiers after a do BLOCK. Thus
@@ -338,7 +323,56 @@ but can't be used when the loop acts as a modifier:
 
     print foreach in @array # ERROR
 
-=head2 Continuation lines
+=head2 &-Prototyped subroutines
+
+C<&>-prototyped subroutines can be used like this:
+
+    sub mygrep (&@):
+        my $code = shift
+        my @result
+        foreach @_:
+            push @result, $_ if &$code
+        return @result
+
+    @array = mygrep:
+        my $aux = $_
+        $aux *= 3
+        $aux += 1
+        $aux % 2
+    reverse 0..5
+
+If the prototype is exactly C<&>, however, Acme::Pythonic needs to know
+it because it might need to add a semicolon after the closing bracket in
+the generated code.
+
+Thus, if any module defines such a subroutine C<use()> it I<before>
+Acme::Pythonic:
+
+    use Thread 'async';
+    use Acme::Pythonic; # now Acme::Pythonic knows async() has prototype "&"
+
+    async:
+        do_this()
+        do_that()
+
+If such a subroutine is defined in the very code being filtered declare
+it before Acme::Pythonic is C<use()>d:
+
+    sub twice (&);             # declaration
+    use Acme::Pythonic;        # now it knows twice() has prototype "&"
+
+    sub twice (&):             # the definition itself can be Pythonic
+         my $code = shift
+         $code->() for 1..2
+
+    twice:
+         do_this_twice()
+
+Nevertheless, the module is not smart enough to handle optional
+arguments as in a subroutine with prototype C<&;$>.
+
+
+=head2 Line joining
 
 As in Python, you can break a logical line in several physical lines
 using a backslash at the end:
@@ -355,8 +389,6 @@ A backslash in a line with a comment won't be removed though:
 
 In Python that's a syntax error.
 
-=head2 Ending commas
-
 If a line ends in a comma or arrow (C<< => >>) it is conceptually joined
 with the following:
 
@@ -365,8 +397,10 @@ with the following:
 
 As in Python, comments can be intermixed there:
 
-    my %hello = (Catalan => 'Hola',  # my mother tongue
-                 English => 'Hello)
+    my %hello = (Catalan => 'Hola',   # my mother tongue
+                 English => 'Hello',)
+
+See L</LIMITATIONS> however.
 
 =head1 LIMITATIONS
 
@@ -382,17 +416,13 @@ parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
 
-On the other hand, to use a subroutine with prototype C<&> you need to
-add the trailing semicolon in its own line by now:
+Acme::Pythonic does not yet support line joining in
 
-    sub foo (&):
-        pass
+    foreach my $foo in (1,
+                        2,): # DOES NOT WORK YET
+        # ...
 
-    foo:
-        pass
-    ;
-
-That's a pity, improving this is in the TODO list.
+kind of places.
 
 =head1 DEBUG
 

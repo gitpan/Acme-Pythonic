@@ -1,5 +1,15 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.20 Wed Jun  2 23:21:27 2004
+    - Main algorithm rewritten, unpythonization is done in one pass now.
+    - Added complete support for line joining, as in
+          for 1,
+              2:
+              # stuff
+      kind of constructions.
+    - Supports backslashes before a trailing comment, which is
+      more in the line of Perl forgiveness IMHO.
+
 0.14
     - "while:" is now correctly converted to "while ()"
     - Added support for &-prototyped subroutines

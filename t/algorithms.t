@@ -242,9 +242,24 @@ sub range_check_tree:
 
     return @range
 
-my @lines = ( 1, 6,  1, 3,  1, 2,  3, 2,  1, 1,  4, 1,
+my @lines = (0, 0, 0, 1)
+is_deeply [manhattan_intersection(@lines)], []
+
+@lines = (0, 0, 1, 0)
+is_deeply [manhattan_intersection(@lines)], []
+
+@lines = (0, 0, 1, 0, 0, 1, 1, 1, 0, 2, 1, 2)
+is_deeply [manhattan_intersection(@lines)], []
+
+@lines = (0, 0, 0, 1, 1, 0, 1, 1, 2, 0, 2, 1)
+is_deeply [manhattan_intersection(@lines)], []
+
+@lines = (0, 1, 2, 1, 1, 0, 1, 2)
+is_deeply [manhattan_intersection(@lines)], [1, 1]
+
+# This is the example in the book.
+@lines = ( 1, 6,  1, 3,  1, 2,  3, 2,  1, 1,  4, 1,
               2, 4,  7, 4,  3, 0,  3, 6,  4, 3,  4, 7,
               5, 7,  5, 4,  5, 2,  7, 2 )
-
-# This is the correct answer, check Figure 10-10, which is right.
+# And this is the correct answer, check Figure 10-10, which is right.
 is_deeply [manhattan_intersection(@lines)], [3, 1, 3, 2, 5, 4, 4, 4, 3, 4]

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 

@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.14';
+$VERSION = '0.20';
 
 use Text::Tabs;
 
@@ -21,19 +21,11 @@ sub import {
 
 use Filter::Simple;
 FILTER_ONLY code => sub {
-    normalize_newlines();
-
-    my $lines = [ split /\n/ ];
-    uncolonize_and_parenthesize($lines);
-    semicolonize_and_bracketize($lines);
-
-    $_ = join "\n", @$lines;
-    fix_modifiers();
-    fix_dangling_else_and_friends();
+    unpythonize();
 
     if ($DEBUG) {
-        print "$_\n";
-        $_ = "1;\n";
+        print;
+        $_ = "1;";
     }
 };
 
@@ -46,6 +38,101 @@ my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
 my $tc = qr/(?<!\$)#.*/;
 
 
+# Tries its best at putting semicolons and figuring out blocks.
+# Language::Pythonesque was the basis of this subroutine.
+#
+# Modifies @$lines in place.
+sub unpythonize {
+    normalize_newlines();
+
+    my @lines  = split /\n/;
+    return unless @lines;
+
+    # If unsure about the ending indentation level, add an extra
+    # non-indented line to ensure the stack gets emptied.
+    push @lines, '1; # added by Acme::Pythonic' if $lines[-1] =~ /^(?:\s|\s*#)/;
+
+    my ($comment, $modifier, $indent, $prev_bob, $prev_nonblank, $prev_modifier);
+    my ($joining, $unbalanced_paren, $bracket_opened_by);
+    my @stack = ();
+
+    foreach my $line (@lines) {
+        # We remove any trailing comment so that we can assert stuff
+        # easily about the end of the code in this line. It is later
+        # appended back in the continue block below.
+        $comment = $line =~ s/(\s*$tc)//o ? $1 : '';
+        next if $line =~ /^\s*$/;
+
+        $unbalanced_paren = left_parenthesize($line) unless $joining;
+
+        # Line joining.
+        if (!$joining) {
+            $modifier = $line =~ /^\s*(?:if|unless|while|until|for|foreach)\b/;
+            $prev_modifier = \$line if $modifier;
+            ($indent) = $line =~ /^(\s*)/;
+            $indent = length(expand($indent));
+        }
+
+        if ($line =~ /(?:,|=>)\s*$/ || $line =~ s/\\\s*$//) {
+            ++$joining;
+            next if $joining > 1;
+        } else {
+            $joining = 0;
+        }
+
+
+        # Handle trailing colons, which can be Pythonic, mark a labeled
+        # block, mean some map, or &-sub call, etc.
+        #
+        # We check the parity of the number of ending colons to try to
+        # avoid breaking
+        #
+        #    print for keys %main::
+        #
+        if ($line =~ /(:+)$/ && length($1) % 2) {
+            $modifier = 0;
+            unless ($line =~ /^\s*($id):$/o && $1 !~ /[[:lower:]]/) {
+                $line =~ s/:\s*$//;
+                if ($unbalanced_paren) {
+                    $line .= ")";
+                    $unbalanced_paren = 0;
+                    $bracket_opened_by = '';
+                } else {
+                    ($bracket_opened_by) = $line =~ /($id)\s*$/o;
+                }
+            }
+        } elsif (!$joining) {
+            $$prev_modifier =~ s/\(// if $modifier;
+            $unbalanced_paren = 0;
+            $line .= ';';
+        }
+
+        # Handle indentation.
+        my $prev_indent = @stack ? $stack[-1]{indent} : 0;
+        if ($prev_indent < $indent) {
+            push @stack, {indent => $indent, bob => $prev_bob};
+            $$prev_nonblank .= " {" unless $$prev_nonblank =~ s/(?=\s*$tc)/ {/o;
+        } elsif ($prev_indent > $indent) {
+            do {
+                my $bob = $stack[-1]{bob};
+                pop @stack;
+                $prev_indent = @stack ? $stack[-1]{indent} : 0;
+                $$prev_nonblank .= "\n" . ((' ' x $prev_indent) . "}");
+                $$prev_nonblank .= ";" if needs_semicolon($bob);
+            } while $prev_indent > $indent;
+            $$prev_nonblank =~ s/;$// if $modifier;
+        }
+        $prev_bob = $bracket_opened_by;
+    } continue {
+        $prev_nonblank = \$line if !$joining && $line =~ /\S/;
+        $line .= $comment;
+    }
+
+    $_ = join "\n", @lines;
+    s/(?<=})\s*(?=elsif|else|continue)/ /g;
+}
+
+
 # In the trials I've done seems like the Python interpreter understands
 # any of the three conventions, even if they are not the ones in the
 # platform, and even if they are mixed in the same file.
@@ -56,52 +143,15 @@ sub normalize_newlines {
 }
 
 
-# Tries its best at removing trailing Pythonic colons, and putting
-# Perlish parens around EXPRs, LISTs, etc.
-#
-# Modifies @$lines in place.
-sub uncolonize_and_parenthesize {
-    my $lines = shift;
-
-    foreach (@$lines) {
-        # We check the parity of the number of ending colons to try to
-        # avoid breaking
-        #
-        #    print for keys %main::
-        #
-        next unless /(:+) (\s* $tc?) $/ox && length($1) % 2;
-        next if /^\s*#/; # skip comments
-
-        # As you know, "while ()" is valid in Perl.
-        if (/^\s*($id)\s*:\s*$/o && $1 ne 'while') {
-            # Labels cannot have lower-case letters in Acme::Pythonic.
-            s/:\s*$// if $1 =~ /[[:lower:]]/;
-            next;
-        }
-
-        # We can safely remove the ending colon now.
-        s/: (\s* $tc?) $/$1/ox;
-
-        # Subroutine definitions are ok this way.
-        next if /^\s*sub\b/;
-
-        # These need parens after the keyword.
-        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*?) (\s* $tc?) $/$1($2)$3/ox;
-
-        # These may be preceded by a label.
-        next if s{^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*?) (\s* $tc?) $}
-                 { $2 eq '' ? "$1 ()$3" : "$1($2)$3" }oxe;
-
-        # Try your best with fors.
-        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*?) (\s* $tc?) $/fortype_guesser($1,$2).$3/oxe;
-    }
+sub left_parenthesize {
+    $_[0] =~ s/^(\s*\b(?:if|elsif|unless)\b\s*)/$1(/                                      ||
+    $_[0] =~ s/^(\s*(?:$id\s*:)?\s*\b(?:while|until)\b(\s*))/$2 eq '' ? "$1 (" : "$1("/eo ||
+    $_[0] =~ s/^(\s*(?:$id\s*:\s*)?\bfor(?:each)?\b\s*)(.*)/fortype_guesser($1,$2)/oxe
 }
 
 
 # Tries its best at guessing a for(each) type or, at least, how to put
-# parens around what it has been matched to the right of the keyword.
-#
-# Returns the string to be substituted.
+# an opening paren. Returns the string to be substituted.
 sub fortype_guesser {
     my ($for, $rest) = @_;
     my $guess = "";
@@ -109,78 +159,24 @@ sub fortype_guesser {
     # Try to match "for VAR in LIST", and "for VAR LIST"
     if ($rest =~ m/^((?:my|our)? \s* \$ $id\s+) in\s* ((?: (?:[\$\@%&\\]) | (?:\b\w) ) .*)$/ox ||
         $rest =~ m/^((?:my|our)? \s* \$ $id\s*)       ((?: (?:[\$\@%&\\]) | (?:\b\w) ) .*)$/ox) {
-        $guess = "$for$1($2)";
+        $guess = "$for$1($2";
     } else {
         # We are not sure whether this is a for or a foreach, but it is
         # very likely that putting parens around gets it right.
         $rest =~ s/^\s*in\b//; # fixes "foreach in LIST"
-        $guess = "$for($rest)";
+        $guess = "$for($rest";
     }
 
     return $guess;
 }
 
 
-# Tries its best at putting semicolons and figuring out blocks.
-# Language::Pythonesque was the basis of this subroutine.
-#
-# Modifies @$lines in place.
-sub semicolonize_and_bracketize {
-    my $lines = shift;
-    return unless @$lines;
-
-    my $prev_indent;
-    my $prev_line;
-    my @stack = ();
-
-    # If unsure about the ending indentation level, add an extra
-    # non-indented line to ensure the stack gets emptied.
-    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] =~ /^(?:\s|\s*#)/;
-    foreach my $line (@$lines) {
-        next unless $line =~ /\S/; # skip blank lines
-        next if $line =~ /^\s*#/;  # skip comments
-
-        if (defined $prev_line &&
-            (($$prev_line =~ m'(?:,|=>)\s*(?<!$)#' || $$prev_line =~ m'(?:,|=>)\s*$') ||
-             ($$prev_line !~ m'(?<!$)#' && $$prev_line =~ s/\\$//))) {
-            # This is done this way because comments are allowed in implicit line joining, see
-            # http://www.python.org/doc/2.3.3/ref/implicit-joining.html
-            $prev_line = \$line;
-            next;
-        }
-
-        my ($indent) = $line =~ /^(\s*)/;
-        $indent = length(expand($indent));
-        my $current_indent = @stack ? $stack[-1]{indent} : 0;
-        if ($current_indent < $indent) {
-            my ($label) = $$prev_line =~ /(?<![\$\@%&])($id)\s*$/;
-            $line =~ s/^\s*pass\s*$//;
-            push @stack, {indent => $indent, label => $label};
-            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*$tc)/ {/o;
-        } elsif ($current_indent > $indent) {
-            my $close = '';
-            while ($current_indent > $indent) {
-                my $label = $stack[-1]{label};
-                pop @stack;
-                $current_indent = @stack ? $stack[-1]{indent} : 0;
-                $close .= "\n" . (' ' x $current_indent) . "}";
-                $close .= ";" if defined $label && needs_semicolon($label);
-            }
-            $$prev_line .= $close;
-        } elsif (defined $prev_line && $$prev_line !~ /$id:\s*$/o) {
-            # Put a semicolon at the right of the previous line but be
-            # careful with comments.
-            $$prev_line .= ";" unless $$prev_line =~ s/(?=\s*$tc)/;/o;
-        }
-        $prev_line = \$line;
-        $prev_indent = $indent;
-    }
-}
-
 sub needs_semicolon {
-    my $label = shift;
-    return 1 if $label =~ /^(do|sub|eval)$/;
-    my $proto = prototype("${CALLER}::$label");
+    my $bob = shift;
+    return 0 if !$bob;
+    return 1 if $bob =~ /^(do|sub|eval)$/;
+
+    my $proto = prototype("${CALLER}::$bob");
     return 0 if not defined $proto;
     return $proto =~ /^;?&$/;
 }
@@ -198,6 +194,7 @@ sub fix_dangling_else_and_friends {
 }
 
 1;
+
 
 __END__
 
@@ -383,14 +380,16 @@ using a backslash at the end:
 
 and in that case the indentation of those additional lines is irrelevant.
 
-A backslash in a line with a comment won't be removed though:
+Unlike Python, backslashes in a line with a comment are allowed
 
-    my $foo = 1 + \  # comment (ERROR)
+    my $foo = 1 + \  # comment, no problem
+        2
 
-In Python that's a syntax error.
+In Python that's a syntax error, but I think that's more in the line of
+Perl forgiveness.
 
 If a line ends in a comma or arrow (C<< => >>) it is conceptually joined
-with the following:
+with the following as well:
 
     my %authors = (Perl   => "Larry Wall",
                    Python => "Guido van Rossum")
@@ -401,6 +400,7 @@ As in Python, comments can be intermixed there:
                  English => 'Hello',)
 
 See L</LIMITATIONS> however.
+
 
 =head1 LIMITATIONS
 
@@ -415,14 +415,6 @@ would be hard to identify the colon that closes the expression without
 parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
-
-Acme::Pythonic does not yet support line joining in
-
-    foreach my $foo in (1,
-                        2,): # DOES NOT WORK YET
-        # ...
-
-kind of places.
 
 =head1 DEBUG
 

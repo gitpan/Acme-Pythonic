@@ -4,15 +4,15 @@ use strict;
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 
 my @foo = 1..5
 @foo = map:
-           $_ *= 2
-           $_ += 1
-       @foo
+    $_ *= 2
+    $_ += 1
+@foo
 
 is_deeply \@foo, [3, 5, 7, 9, 11]
 

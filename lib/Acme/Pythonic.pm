@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.40';
+$VERSION = '0.41';
 
 use Text::Tabs;
 
@@ -43,7 +43,7 @@ my $tc = qr/(?<!\$)#.*/;
 sub unpythonize {
     # Sometimes Filter::Simple adds newlines blanking out stuff, which
     # interferes with Pythonic conventions.
-    my %bos = ();
+    my %bos = (); # BlanketOutS
     my $count = 0;
     s<$Filter::Simple::placeholder>
      <my $bo = "$;BLANKED_OUT_".$count++."$;";
@@ -53,22 +53,22 @@ sub unpythonize {
     # In addition, we can now normalize newlines without breaking
     # Filter::Simple's identifiers.
     normalize_newlines();
-    my @lines  = split /\n/;
+    my @lines = split /\n/;
     return unless @lines;
 
     # If unsure about the ending indentation level, add an extra
     # non-indented line to ensure the stack gets emptied.
     push @lines, '1; # added by Acme::Pythonic' if $lines[-1] =~ /^(?:\s|\s*#)/;
 
-    my ($comment,          # comment in the current line, if any
-        $indent,           # indentation level of the current logical line
-        $sob,              # the word that started a block, for instance "else", or "eval"
-        $prev_nonblank,    # previous line with actual code
-        $modifier,         # flag: current logical line might be a modifier
-        $start_modifier,   # phisical line that started the current modifier
-        $joining,          # flag: are we joining lines?
-        $unbalanced_paren, # flag: we opened a paren that remains to be closed
-        @stack,            # keeps track of indentation stuff
+    my ($comment,             # comment in the current line, if any
+        $indent,              # indentation of the current logical line
+        $id_at_sob,           # identifier at StartOfBlock, for instance "else", or "eval"
+        $prev_line_with_code, # previous line with code
+        $might_be_modifier,   # flag: current logical line might be a modifier
+        $line_with_modifier,  # physical line which started the current modifier
+        $joining,             # flag: are we joining lines?
+        $unbalanced_paren,    # flag: we opened a paren that remains to be closed
+        @stack,               # keeps track of indentation stuff
        );
 
     @stack = ();
@@ -81,8 +81,8 @@ sub unpythonize {
 
         if (!$joining) {
             $unbalanced_paren = left_parenthesize($line);
-            $modifier = $line =~ /^\s*(?:if|unless|while|until|for|foreach)\b/;
-            $start_modifier = \$line if $modifier;
+            $might_be_modifier = $line =~ /^\s*(?:if|unless|while|until|for|foreach)\b/;
+            $line_with_modifier = \$line if $might_be_modifier;
             ($indent) = $line =~ /^(\s*)/;
             $indent = length(expand($indent));
         }
@@ -104,7 +104,7 @@ sub unpythonize {
         #
         my $bracket_opened_by = '';
         if ($line =~ /(:+)$/ && length($1) % 2) {
-            $modifier = 0;
+            $might_be_modifier = 0;
             # We perform some checks because labels have to keep their colon.
             if ($line !~ /^\s*$id:$/o ||
                 $line =~ /[[:lower:]]/ || # labels are not allowed to have lower-case letters
@@ -118,7 +118,7 @@ sub unpythonize {
                 }
             }
         } elsif (!$joining) {
-            $$start_modifier =~ s/\(// if $modifier;
+            $$line_with_modifier =~ s/\(// if $might_be_modifier;
             $unbalanced_paren = 0;
             $line .= ';';
         }
@@ -127,23 +127,22 @@ sub unpythonize {
         # this code.
         my $prev_indent = @stack ? $stack[-1]{indent} : 0;
         if ($prev_indent < $indent) {
-            push @stack, {indent => $indent, sob => $sob};
-            $$prev_nonblank .= " {" unless $$prev_nonblank =~ s/(?=\s*$tc)/ {/o;
+            push @stack, {indent => $indent, id_at_sob => $id_at_sob};
+            $$prev_line_with_code .= " {" unless $$prev_line_with_code =~ s/(?=\s*$tc)/ {/o;
         } elsif ($prev_indent > $indent) {
-            $$prev_nonblank =~ s/;$//; # to support use constant HASHREF
             do {
-                my $prev_sob = $stack[-1]{sob};
+                my $prev_id_at_sob = $stack[-1]{id_at_sob};
                 pop @stack;
                 $prev_indent = @stack ? $stack[-1]{indent} : 0;
-                $$prev_nonblank .= "\n" . ((' ' x $prev_indent) . "}");
-                $$prev_nonblank .= ";" if needs_semicolon($prev_sob);
+                $$prev_line_with_code .= "\n" . ((' ' x $prev_indent) . "}");
+                $$prev_line_with_code .= ";" if needs_semicolon($prev_id_at_sob);
             } while $prev_indent > $indent;
-            $$prev_nonblank =~ s/;(?=$tc)?$// if $modifier;
+            $$prev_line_with_code =~ s/;(?=$tc)?$// if $might_be_modifier;
         }
-        $sob = $bracket_opened_by;
+        $id_at_sob = $bracket_opened_by;
     } continue {
         $line =~ s/^\s*pass;?\s*$//;
-        $prev_nonblank = \$line if !$joining && $line =~ /\S/;
+        $prev_line_with_code = \$line if !$joining && $line =~ /\S/;
         $line .= $comment;
     }
 
@@ -197,14 +196,14 @@ sub fortype_guesser {
 }
 
 
-# Guesses whether a block started by $sob needs a semicolon after the
+# Guesses whether a block started by $id_at_sob needs a semicolon after the
 # ending bracket.
 sub needs_semicolon {
-    my $sob = shift;
-    return 0 if !$sob;
-    return 1 if $sob =~ /^(do|sub|eval|constant)$/;
+    my $id_at_sob = shift;
+    return 0 if !$id_at_sob;
+    return 1 if $id_at_sob =~ /^(do|sub|eval)$/;
 
-    my $proto = $sob =~ /::/ ? prototype($sob) : prototype("${CALLER}::$sob");
+    my $proto = $id_at_sob =~ /::/ ? prototype($id_at_sob) : prototype("${CALLER}::$id_at_sob");
     return 0 if not defined $proto;
     return $proto =~ /^;?&$/;
 }
@@ -241,13 +240,13 @@ Acme::Pythonic - Python whitespace conventions for Perl
 
 =head1 DESCRIPTION
 
-Acme::Pythonic is a source filter that brings Python whitespace
-conventions to Perl. Just C<use()>ing the module you've got B<new syntax
-on the fly>. No file is generated, no file is modified.
+Acme::Pythonic brings Python whitespace conventions to Perl. Just C<use>
+it and Pythonic code will become valid on the fly. No file is generated,
+no file is modified.
 
 This module is thought for those who embrace contradictions. A humble
-aid for walkers of the Whitespace Matters Way in their pursuit of
-highest realization, only attained with L<SuperPython>.
+contribution for walkers of the Whitespace Matters Way in their pursuit
+of highest realization, only attained with L<SuperPython>.
 
 =head1 OVERVIEW
 
@@ -255,9 +254,11 @@ Acme::Pythonic provides I<grosso modo> these conventions:
 
 =over 4
 
-=item * Blocks are marked by indentation and an opening colon instead of braces.
+=item * Blocks are marked by indentation and an opening colon instead of
+braces.
 
-=item * Simple statements are separated by newlines instead of semicolons.
+=item * Simple statements are separated by newlines instead of
+semicolons.
 
 =item * EXPRs in control flow structures do not need parentheses around.
 
@@ -391,6 +392,8 @@ but can't be used when the loop acts as a modifier:
 
     print foreach in @array # ERROR
 
+This keyword is not supported as sequence membership operator.
+
 =head2 &-Prototyped subroutines
 
 C<&>-prototyped subroutines can be used like this:
@@ -457,9 +460,6 @@ Unlike Python, backslashes in a line with a comment are allowed
     my $foo = 1 + \  # comment, no problem
         2
 
-In Python that's a syntax error, but I think that's more in the line of
-Perl forgiveness.
-
 If a line ends in a comma or arrow (C<< => >>) it is conceptually joined
 with the following as well:
 
@@ -480,16 +480,15 @@ Acme::Pythonic munges a source that has already been processed by L<Filter::Simp
                     Green)
 
 
-=head1 LIMITATIONS
+=head1 CAVEATS
 
 Although this module makes possible some Python-like syntax in Perl,
-there are some remarkable limitations in the current implementation. I
-don't plan to fix them, but they are documented:
+there are some remarkable limitations in the current implementation:
 
 =over 4
 
-* Compound statement bodies are not recognized in header lines. This would
-be valid according to Python syntax:
+=item * Compound statement bodies are not recognized in header
+lines. This would be valid according to Python syntax:
 
     if $n % 2: $n = 3*$n + 1
     else: $n /= 2
@@ -500,35 +499,39 @@ parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
 
-* In Python statements may span lines if they're enclosed in C<()>, C<{}>,
-or C<[]> pairs. Acme::Pythonic does not support this rule, however, though
-it understands the common case where you break the line in a comma in
-list literals, subroutine calls, etc.
-
-* The keyword C<in> is supported in foreach loops as documented above,
-but it is not supported as a sequence membership operator. This has
-nothing to do with whitespace conventions, but it's worth expliciting
-it.
+=item * In Python statements may span lines if they're enclosed in
+C<()>, C<{}>, or C<[]> pairs. Acme::Pythonic does not support this rule,
+however, though it understands the common case where you break the line
+in a comma in list literals, subroutine calls, etc.
 
 =back
+
+Remember that source filters do not work if they are called at runtime,
+for instance via C<require> or C<eval EXPR>. The source code was already
+consumed in the compilation phase by then.
 
 
 =head1 DEBUG
 
-You can pass a C<debug> flag to Acme::Pythonic like this:
+L<Filter::ExtractSource> can be used to inspect the source code
+generated by Acme::Pythonic:
+
+    perl -c -MFilter::ExtractSource pythonic_script.pl
+
+Acme::Pythonic itself has a C<debug> flag though:
 
     use Acme::Pythonic debug => 1;
 
 In debug mode the module prints to standard output the code it has
-generated and substitutes everything with a dummy C<1;>, so nothing gets
-executed. This way the resulting source can be inspected.
-
-The module tries to generate human readable code following L<perlstyle>.
-Blank lines and comments are preserved.
+generated, and passes just a dummy C<1;> to L<Filter::Simple>.
 
 This happens I<before> L<Filter::Simple> undoes the blanking out of
 PODs, strings, and regexps. Those parts are marked with the label
 C<BLANKED_OUT> for easy identification.
+
+Acme::Pythonic generates human readable Perl following L<perlstyle>, and
+tries meticolously to be respectful with the original source code.
+Blank lines and comments are preserved.
 
 
 =head1 BUGS
@@ -553,7 +556,7 @@ infinitely more broken.
 
 =head1 SEE ALSO
 
-L<perlfilter>, L<Filter::Simple>, L<SuperPython>, L<Acme::Dot>.
+L<perlfilter>, L<Filter::Simple>, L<Filter::ExtractSource>, L<SuperPython>, L<Acme::Dot>.
 
 
 =head1 AUTHOR

@@ -23,5 +23,6 @@ t/unless.t
 t/until.t
 t/use.t
 t/while.t
+t/constant.t
 lib/Acme/Pythonic.pm
 META.yml                                 Module meta-data (added by MakeMaker)

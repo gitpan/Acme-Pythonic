@@ -1,5 +1,14 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.41 Thu Dec  2 20:18:26 2004
+    - use constant HASHREF is no longer allowed in Pythonic
+      form, that was a wrong choice.
+    - Added t/constant.t.
+    - The last statement in a block has now a semicolon.
+    - Minor code improvements.
+    - Documentation fixes.
+    - Added mention to Filter::ExtractSource in documentation.
+
 0.40 Thu Jul  8 15:12:51 2004
     - Documentation fixes and improvements.
     - Tested in perl 5.8.4 (Mac OS X).

@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.33';
+$VERSION = '0.40';
 
 use Text::Tabs;
 
@@ -242,7 +242,8 @@ Acme::Pythonic - Python whitespace conventions for Perl
 =head1 DESCRIPTION
 
 Acme::Pythonic is a source filter that brings Python whitespace
-conventions to Perl.
+conventions to Perl. Just C<use()>ing the module you've got B<new syntax
+on the fly>. No file is generated, no file is modified.
 
 This module is thought for those who embrace contradictions. A humble
 aid for walkers of the Whitespace Matters Way in their pursuit of
@@ -301,7 +302,7 @@ or rather
 
 where the second half is a labeled block, and so C<do_that()> is unconditionally executed.
 
-To solve this labels in Pythonic code have to be in upper case.
+To solve this B<labels in Pythonic code have to be in upper case>.
 
 In addition, to be able to write a BEGIN block as
 
@@ -374,7 +375,8 @@ This works:
     foreach my $foo @array:
         do_something_with $foo
 
-However C<in> is supported in case you find the following more readable
+Nevertheless, C<in> can be inserted there as in Python in case you find
+the following more readable:
 
     foreach my $foo in @array:
         do_something_with $foo
@@ -480,8 +482,14 @@ Acme::Pythonic munges a source that has already been processed by L<Filter::Simp
 
 =head1 LIMITATIONS
 
-Keywords followed by code in the same line are C<not> supported. This would
-be valid in Python:
+Although this module makes possible some Python-like syntax in Perl,
+there are some remarkable limitations in the current implementation. I
+don't plan to fix them, but they are documented:
+
+=over 4
+
+* Compound statement bodies are not recognized in header lines. This would
+be valid according to Python syntax:
 
     if $n % 2: $n = 3*$n + 1
     else: $n /= 2
@@ -491,6 +499,18 @@ would be hard to identify the colon that closes the expression without
 parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
+
+* In Python statements may span lines if they're enclosed in C<()>, C<{}>,
+or C<[]> pairs. Acme::Pythonic does not support this rule, however, though
+it understands the common case where you break the line in a comma in
+list literals, subroutine calls, etc.
+
+* The keyword C<in> is supported in foreach loops as documented above,
+but it is not supported as a sequence membership operator. This has
+nothing to do with whitespace conventions, but it's worth expliciting
+it.
+
+=back
 
 
 =head1 DEBUG

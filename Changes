@@ -1,5 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.40 Thu Jul  8 15:12:51 2004
+    - Documentation fixes and improvements.
+    - Tested in perl 5.8.4 (Mac OS X).
+    - LIMITATIONS revised.
+
 0.33
     - Minor documentation improvements.
     - The section about labels was rewritten.

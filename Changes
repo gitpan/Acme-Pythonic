@@ -1,5 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.33
+    - Minor documentation improvements.
+    - The section about labels was rewritten.
+    - Added Acme::Dot to SEE ALSO.
+
 0.32 Sat Jun 19 16:09:44 2004
     - Added OVERVIEW to POD.
     - Minor documentation enhancements.

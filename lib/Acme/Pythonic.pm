@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.32';
+$VERSION = '0.33';
 
 use Text::Tabs;
 
@@ -252,15 +252,17 @@ highest realization, only attained with L<SuperPython>.
 
 Acme::Pythonic provides I<grosso modo> these conventions:
 
-* Blocks are marked by indentation and an opening colon instead of braces.
+=over 4
 
-* Simple statements are separated by newlines instead of semicolons.
+=item * Blocks are marked by indentation and an opening colon instead of braces.
 
-* EXPRs in control flow structures do not need parentheses around.
+=item * Simple statements are separated by newlines instead of semicolons.
+
+=item * EXPRs in control flow structures do not need parentheses around.
+
+=back
 
 Additionally, the filter understands the keywords C<pass> and C<in>.
-
-This snippet summarizes the idea:
 
     foreach my $n in 1..100:
         while $n != 1:
@@ -273,14 +275,49 @@ This snippet summarizes the idea:
 
 =head2 Labels
 
-This is the Acme::Pythonic version of the example in L<perlsyn>:
+The syntax this module provides introduces an ambiguity: Given
+
+    if $flag:
+        do_this()
+    else:
+        do_that()
+
+there's no way to know whether that is meant to be
+
+    if ($flag) {
+        do_this();
+    } else {
+        do_that();
+    }
+
+or rather
+
+    if ($flag) {
+        do_this();
+    }
+    else: {
+        do_that();
+    }
+
+where the second half is a labeled block, and so C<do_that()> is unconditionally executed.
+
+To solve this labels in Pythonic code have to be in upper case.
+
+In addition, to be able to write a BEGIN block as
+
+    BEGIN:
+        $foo = 3
+
+C<BEGIN>, C<CHECK>, C<INIT>, C<END> cannot be used as labels.
+
+Let's see some examples. This is the Pythonic version of the snippet in L<perlsyn>:
 
     OUTER: for my $wid in @ary1:
         INNER: for my $jet in @ary2:
             next OUTER if $wid > $jet
             $wid += $jet
 
-Labeled blocks work as well:
+And here we have a labeled block:
 
     my $k = 7
     FOO:
@@ -301,25 +338,6 @@ example above:
 
 Since the first C<for> is indented with respect to C<OUTER:> we get a
 labeled block containing a C<for> loop, instead of a labeled C<for>.
-
-Labels can be composed just of upper-case letters. That was decided so
-that list operators can be chained:
-
-    my @st = map:
-        $_->[0]
-    sort:
-        $a->[1] <=> $b->[1]
-    map:
-        [$_, $foo{$_}]
-    keys %foo
-
-In addition, "BEGIN", "CHECK", "INIT", "END", cannot be labels because,
-for example,
-
-    BEGIN:
-        $foo = 3
-
-is treated as a BEGIN block hence the colon is removed.
 
 =head2 C<do/while>-like constructs
 
@@ -344,7 +362,7 @@ is not.
 
 =head3 pass
 
-To be able to have an empty block we provide C<pass>:
+C<pass> is a NO-OP, it is meant to explicit empty blocks:
 
     sub abstract_method:
         pass
@@ -406,10 +424,11 @@ Acme::Pythonic:
 If such a subroutine is defined in the very code being filtered declare
 it before Acme::Pythonic is C<use()>d:
 
-    sub twice (&);             # declaration
-    use Acme::Pythonic;        # now it knows twice() has prototype "&"
+    sub twice (&);      # declaration
+    use Acme::Pythonic; # now Acme::Pythonic knows twice() has prototype "&"
 
-    sub twice (&):             # the definition itself can be Pythonic
+    # the definition itself can be Pythonic
+    sub twice (&):
          my $code = shift
          $code->() for 1..2
 
@@ -451,12 +470,13 @@ As in Python, comments can be intermixed there:
                  English => 'Hello',)
 
 
-Acme::Pythonic munges a source that has already been processed by L<Filter::Simple>. In particular, L<Filter::Simple> blanks out quotelikes whose content is not even seen by Acme::Pythonic so backslashes in C<qw//> and friends won't be removed and will produce a syntax error:
+Acme::Pythonic munges a source that has already been processed by L<Filter::Simple>. In particular, L<Filter::Simple> blanks out quotelikes whose content is not even seen by Acme::Pythonic so backslashes in C<qw//> and friends won't be removed:
 
     # Do not put backslashes here because qw// is bypassed
     my @colors = qw(Red
                     Blue
                     Green)
+
 
 =head1 LIMITATIONS
 
@@ -510,13 +530,16 @@ blanking out PODs, strings, etc. so you can munge the source with
 certain confidence. Without Filter::Simple this module would be
 infinitely more broken.
 
+
 =head1 SEE ALSO
 
-L<perlfilter>, L<Filter::Simple>, L<SuperPython>.
+L<perlfilter>, L<Filter::Simple>, L<SuperPython>, L<Acme::Dot>.
+
 
 =head1 AUTHOR
 
 Xavier Noria (FXN), E<lt>fxn@cpan.orgE<gt>
+
 
 =head1 COPYRIGHT AND LICENSE
 

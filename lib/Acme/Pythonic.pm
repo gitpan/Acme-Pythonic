@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG);
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 use Text::Tabs;
 
@@ -110,8 +110,8 @@ sub fortype_guesser {
     my $guess = "";
 
     # Try to match "for VAR in LIST", and "for VAR LIST"
-    if ($rest =~ m/^(\s* (?:my|our)? \s* \$ $id) \s+in\b ((?: (?:\s*[\$\@%&,\\]) | (?:\s+ $id) ) .*)$/ox ||
-        $rest =~ m/^(\s* (?:my|our)? \s* \$ $id)         ((?: (?:\s*[\$\@%&,\\]) | (?:\s+ $id) ) .*)$/ox) {
+    if ($rest =~ m/^(\s* (?:my|our)? \s* \$ $id) \s+in ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox ||
+        $rest =~ m/^(\s* (?:my|our)? \s* \$ $id)       ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox) {
         $guess = "$for $1 ($2)";
     } else {
         # We are not sure whether this is a for or a foreach, but it is
@@ -167,7 +167,7 @@ sub semicolonize_and_bracketize {
         my $prev_indent = @stack ? $stack[-1]{indent} : 0;
         if ($prev_indent < $indent) {
             my ($prev_word) = $prev_line =~ /(\w+)\s*$/;
-            $line =~ s/^(\s+)pass\s*$/$1/;
+            $line =~ s/^(\s*)pass\s*$/$1/;
             my $spc = ' ' x $prev_indent;
             push @stack, {indent => $indent, prev_word => $prev_word};
             $line =~ s/^/$spc\{\n/;
@@ -318,16 +318,23 @@ that list operators can be chained:
                  [$_, $foo{$_}]
              keys %foo
 
-and &-prototyped subroutines can be used like this:
+and C<&>-prototyped subroutines can be used like this:
 
-    use Error
+    sub mygrep (&@):
+        my $code = shift
+        my @result
+        foreach @_:
+            push @result, $_ if &$code;
+        return @result;
 
-    # ...
-    try:
-        $server->send_data($data)
-    catch Error::IO with:
-        my $E = shift
-        # handle the exception
+    @array = mygrep:
+                 my $aux = $_
+                 $aux *= 3
+                 $aux += 1
+                 $aux % 2
+             reverse 0..5
+
+as long as the rightmost parameter is not of type C<&>.
 
 =head2 C<do/while>-like constructs
 

@@ -1,6 +1,12 @@
 Revision history for Perl extension Acme::Pythonic.
 
-0.02 Mon May 24 15:31:42 CEST 2004
+0.03 Mon May 24 23:36:55 2004
+     - More tests
+     - pass wasn't being ignored at the beginning of line
+     - Fixed a bug handling fors
+     - More documentation fixes.
+
+0.02 Mon May 24 15:31:42 2004
 	- Minor fixes in documentation
 
 0.01  Mon May 17 23:14:00 2004

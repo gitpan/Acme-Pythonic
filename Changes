@@ -1,5 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.11 Fri May 28 01:09:45 2004
+     - Regexps slightly more robust.
+     - Fixed: There was a bug that might prevent the stack from being emptied.
+     - Fixed: Whitespace after backlashes in comments could be modified.
+
 0.1
      - More tests
      - Implicit line joining is more Pythonic

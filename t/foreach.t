@@ -3,7 +3,7 @@
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 
@@ -134,7 +134,7 @@ package main
 # ----------------------------------------------------------------------
 
 $n = 0
-foreach1,,,:
+foreach 1,,,:
     ++$n
 is $n, 1
 

@@ -1,6 +1,5 @@
 # -*- Mode: Python -*-
 
-use strict;
 use warnings;
 
 use Test::More 'no_plan';
@@ -36,6 +35,21 @@ do:
 while $k < 10
 
 is $k, 15
+
+# ----------------------------------------------------------------------
+
+$k = 1
+do:
+    $k *= 2
+    $k += 1
+# The module should be robust to these comments after a do {} even if
+# they contain something misleading like
+# while $k < 9;
+while $k < 0:
+    pass
+
+is $k, 3
+
 
 # ----------------------------------------------------------------------
 

@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG %SM);
-$VERSION = '0.1';
+$VERSION = '0.11';
 
 use Text::Tabs;
 
@@ -23,6 +23,7 @@ sub import {
     }
     %SM = map { $_ => 1 } ('do', 'sub', 'eval', @{$cfg{'(&)'}});
 }
+
 
 use Filter::Simple;
 FILTER_ONLY code => sub {
@@ -65,9 +66,9 @@ sub normalize_newlines {
 # but we allow it.
 sub join_continuation_lines {
     # put a dummy space in backslashes at the end of comments
-    my $undo = s/(?<!\$)(#.*)\\\n/$1 \n/g;
+    my $undo = s/(?<!\$)(#.*\\ *)\n/$1 \n/g;
     s/\\\n//g;
-    s/(?<!\$)(#.*)\\ \n/$1\n/g if $undo;
+    s/(?<!\$)(#.*\\ *) \n/$1\n/g if $undo;
 }
 
 
@@ -100,19 +101,14 @@ sub uncolonize_and_parenthesize {
         next if /^\s*sub\b/;
 
         # These need parens after the keyword.
-        next if s/^(\s* if     \s*) (.*)$/$1($2)/x;
-        next if s/^(\s* elsif  \s*) (.*)$/$1($2)/x;
-        next if s/^(\s* unless \s*) (.*)$/$1($2)/x;
+        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*)$/$1($2)/x;
 
         # These may be preceded by a label.
-        next if s/^(\s* (?:$id\s*:)? \s* while \s*) (.*)$/$1($2)/ox;
-        next if s/^(\s* (?:$id\s*:)? \s* until \s*) (.*)$/$1($2)/ox;
+        next if s/^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*)$/$1($2)/ox;
 
         # Try your best with fors.
-        next if s/^(\s* (?:$id\s*:\s*)? for(?:each)?\s*) (.*)$/fortype_guesser($1,$2)/oxe;
+        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*)$/fortype_guesser($1,$2)/oxe;
     }
-
-    return $lines;
 }
 
 
@@ -151,8 +147,9 @@ sub semicolonize_and_bracketize {
     my $prev_line;
     my @stack = ();
 
-    # We add an extran non-indented line to ensure the stack gets emptied.
-    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] =~ /^\s+/ || $lines->[-1] eq '';
+    # If unsure about the ending indentation level, add an extra
+    # non-indented line to ensure the stack gets emptied.
+    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] !~ /^(?!\s|#)/;
     foreach my $line (@$lines) {
         next unless $line =~ /\S/; # skip blank lines
         next if $line =~ /^\s*#/;  # skip comments

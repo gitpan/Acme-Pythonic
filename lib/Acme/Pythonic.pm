@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.23';
+$VERSION = '0.24';
 
 use Text::Tabs;
 
@@ -87,8 +87,6 @@ sub unpythonize {
             $indent = length(expand($indent));
         }
 
-        # The last condition is a work-around. Filter::Simple adds
-        # newlines for the 10th, 11th, and 12th blanked out chunks.
         if ($line =~ /(?:,|=>)\s*$/ || $line =~ s/\\\s*$//) {
             ++$joining;
             next if $joining > 1; # if 1 we need yet to handle indentation
@@ -138,10 +136,11 @@ sub unpythonize {
                 $$prev_nonblank .= "\n" . ((' ' x $prev_indent) . "}");
                 $$prev_nonblank .= ";" if needs_semicolon($prev_sob);
             } while $prev_indent > $indent;
-            $$prev_nonblank =~ s/;$// if $modifier;
+            $$prev_nonblank =~ s/;(?=$tc)?$// if $modifier;
         }
         $sob = $bracket_opened_by;
     } continue {
+        $line =~ s/^\s*pass;?\s*$//;
         $prev_nonblank = \$line if !$joining && $line =~ /\S/;
         $line .= $comment;
     }
@@ -291,7 +290,7 @@ that list operators can be chained:
 
 =head2 C<do/while>-like constructs
 
-Acme::Pythonic tries to detect loop modifiers after a do BLOCK. Thus
+Acme::Pythonic tries to detect statement modifiers after a do BLOCK. Thus
 
     do:
         do_something()

@@ -1,12 +1,20 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.24 Tue Jun  8 03:29:09 2004
+    - Minor documentarion fixes.
+    - Added t/pass.t.
+    - The refactoring forgot "pass", restored (ugh, Test::More has a pass() that
+      made the tests compile an run!)
+    - The removal of some semicolons didn't work with trailing comments, fixed.
+    - Removed a comment that no longer applied.
+
 0.23 Mon Jun  7 02:56:29 2004
-    - Port of the calculator example in Stroustrup's in t/calculator.t
-    - Fixed: use constant HASHREF didn't get a semicolon
+    - Port of the calculator example in Stroustrup's in t/calculator.t.
+    - Fixed: use constant HASHREF didn't get a semicolon.
     - In debug mode blanked out chunks are substituted with
-      the label "BLANKED_OUT" for easy identification
+      the label "BLANKED_OUT" for easy identification.
     - The module got confused with newlines added by
-      Filter::Simple, fixed
+      Filter::Simple, fixed.
     - Removed an old, no longer used subroutine.
 
 0.22 Sat Jun  5 14:33:13 2004

@@ -14,6 +14,7 @@ t/if.t
 t/labels.t
 t/map.t
 t/noindent.t
+t/pass.t
 t/pod.t
 t/sub.t
 t/subproto.t

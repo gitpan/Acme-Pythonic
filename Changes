@@ -1,6 +1,9 @@
 Revision history for Perl extension Acme::Pythonic.
 
-0.21
+0.22 Sat Jun  5 14:33:13 2004
+    - Just Re-uploaded. Changes was not saved in 0.21.
+
+0.21 Sat Jun  5 14:30:32 2004
     - Fixed a minor mistake in the POD.
     - Comments needed a revision after the refactoring. Done.
 

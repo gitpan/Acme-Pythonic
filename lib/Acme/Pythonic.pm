@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.21';
+$VERSION = '0.22';
 
 use Text::Tabs;
 

@@ -1,0 +1,21 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/clines.t
+t/do.t
+t/eval.t
+t/for.t
+t/foreach.t
+t/if.t
+t/labels.t
+t/map.t
+t/noindent.t
+t/pod.t
+t/sub.t
+t/unless.t
+t/until.t
+t/use.t
+t/while.t
+lib/Acme/Pythonic.pm
+META.yml                                 Module meta-data (added by MakeMaker)

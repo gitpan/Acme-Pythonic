@@ -1,0 +1,6 @@
+Revision history for Perl extension Acme::Pythonic.
+
+0.01  Mon May 17 23:14:00 2004
+	- original version; created by h2xs 1.23 with options
+		-XA -n Acme::Pythonic
+

@@ -3,12 +3,12 @@ package Acme::Pythonic;
 # Please, if you tested it in some earlier version of Perl and works let
 # me know! The versions of Filter::Simple, Text::Tabs, and Test::More
 # would be useful as well.
-use 5.008000;
+use 5.006_001;
 use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.42';
+$VERSION = '0.43';
 
 use Text::Tabs;
 
@@ -33,7 +33,7 @@ FILTER_ONLY code => sub {
 
 # This regexp matches a 7-bit ASCII identifier. We use atomic grouping
 # because an identifier cannot be backtracked.
-my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
+my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/; # '
 
 # Shorthand to put an eventual trailing comment in some regexps.
 my $tc = qr/(?<!\$)#.*/;
@@ -137,7 +137,7 @@ sub unpythonize {
                 $$prev_line_with_code .= "\n" . ((' ' x $prev_indent) . "}");
                 $$prev_line_with_code .= ";" if needs_semicolon($prev_id_at_sob);
             } while $prev_indent > $indent;
-            $$prev_line_with_code =~ s/;(?=$tc)?$// if $might_be_modifier;
+            $$prev_line_with_code =~ s/;$/ / if $might_be_modifier;
         }
         $id_at_sob = $bracket_opened_by;
     } continue {
@@ -211,7 +211,8 @@ sub needs_semicolon {
 
 # We follow perlstyle here, as we did until now.
 sub uncuddle_elses_and_friends {
-    s/^(\s*})\s*(?=elsif|else|continue)/$1 /gm;
+    s/^([ \t]*})\s*(?=(?:elsif|else|continue)\b)/$1 /gm;
+    s/^([ \t]*})\s*(?=(?:if|unless|while|until|for|foreach)\b(?!.*{$tc?$))/$1 /gm;
 }
 
 1;
@@ -553,6 +554,8 @@ blanking out PODs, strings, etc. so you can munge the source with
 certain confidence. Without Filter::Simple this module would be
 infinitely more broken.
 
+Esteve Fernandez helped testing the module under 5.6.1 and contributed
+a Sieve of Eratosthenes for F<t/algorithms.t>. Thank you dude!
 
 =head1 SEE ALSO
 
@@ -566,7 +569,7 @@ Xavier Noria (FXN), E<lt>fxn@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2004 by Xavier Noria
+Copyright (C) 2004-2005 by Xavier Noria
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.2 or,

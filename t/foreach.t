@@ -1,7 +1,5 @@
 # -*- Mode: Python -*-
 
-use warnings;
-
 use Test::More 'no_plan';
 use Acme::Pythonic debug => 0;
 
@@ -126,6 +124,7 @@ is_deeply \@array, [('oooo') x 3]
 
 package foo
 our $bar = 3
+$bar = 7
 my @vars = ()
 push @vars, $_ foreach keys %foo::
 Test::More::is_deeply(\@vars, ['bar'])

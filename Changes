@@ -1,8 +1,14 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.43 Sun Jan  2 02:02:49 2005
+    - Uncuddles do {} modifier.
+    - Required Perl version relaxed to 5.6.1.
+    - A few more tests.
+    - A regex was fixed.
+
 0.42 Fri Dec  3 09:39:08 2004
     - Removed Filter::tee from a test, which made
-      make test fail since it is not a dependency
+      make test fail since it is not a dependency.
     - A typo was corrected in the documentation.
 
 0.41 Thu Dec  2 20:18:26 2004

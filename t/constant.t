@@ -1,5 +1,4 @@
-use Test::More 'no_plan';
-use Acme::Pythonic debug => 0;
+BEGIN { if ($^V && $^V gt v5.6.1) { eval "use Test::More 'no_plan'; use Acme::Pythonic;" } else { eval "use Test::More skip_all => 'This test needs at least 5.8.0'; exit" }}
 
 use constant FOO => 0
 use constant BAR => 1

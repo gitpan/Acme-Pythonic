@@ -12,17 +12,17 @@ use warnings
 
 use vars qw($cin $curr_tok $number_value $string_value %table)
 
-use constant {NAME   => 0,
-              NUMBER => 1,
-              STOP   => 2,   # END is a Perl keyword
-              PLUS   => '+',
-              MINUS  => '-',
-              MUL    => '*',
-              DIV    => '/',
-              PRINT  => ';',
-              ASSIGN => '=',
-              LP     => '(',
-              RP     => ')',}
+use constant NAME   => 0
+use constant NUMBER => 1
+use constant STOP   => 2   # END is a Perl keyword
+use constant PLUS   => '+'
+use constant MINUS  => '-'
+use constant MUL    => '*'
+use constant DIV    => '/'
+use constant PRINT  => ';'
+use constant ASSIGN => '='
+use constant LP     => '('
+use constant RP     => ')'
 
 %table = (pi => 3.1415926535897932385,
           e  => 2.7182818284590452354)

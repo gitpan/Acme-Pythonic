@@ -85,6 +85,41 @@ is is_prime(4900), 0
 is is_prime(7919), 1
 
 
+sub eratostenes:
+    my $num = shift 
+    $num or die 'Dona\'m un enter, si us plau'
+
+    # creo les dues llistes per emmagatzemar els
+    # primers i els nombres
+    my @primers
+    my @nombres
+    
+    # afegeixo a la llista cadascun dels nombres
+    for my $i in 2..$num:
+	   push(@nombres, $i)
+	
+    push(@primers, shift(@nombres))
+
+    # mentres el quadrat del nombre més gran
+    # dels primers sigui més petit que el nombre
+    # més gran de la llista, esborra els múltiples
+    # del primer més gran a la llista de nombres
+    while @nombres && ($primers[-1] ** 2) <= $nombres[-1]:
+        @nombres = grep:
+	        $_ % $primers[-1]
+	    @nombres
+	   push(@primers, shift(@nombres))
+
+
+    return join(',', @primers, @nombres)
+    
+is eratostenes(2), "2"
+is eratostenes(3), "2,3"
+is eratostenes(5), "2,3,5"
+is eratostenes(6), eratostenes(5)
+is eratostenes(49), "2,3,5,7,11,13,17,19,23,29,31,37,41,43,47" 
+is eratostenes(50), eratostenes(49)
+
 # ----------------------------------------------------------------------
 
 sub bubblesort:

@@ -19,17 +19,17 @@ is_deeply \@foo, [3, 5, 7, 9, 11]
 # ----------------------------------------------------------------------
 
 my %foo = (bar => 3,
-           baz => 2,
+           baz => 2, # this comment shouldn't be a problem
            moo => 4,
            zoo => 1)
 
 my @st = map:
-             $_->[0]
-         sort:
-             $a->[1] <=> $b->[1]
-         map:
-             [$_, $foo{$_}]
-         keys %foo
+    $_->[0]
+sort:
+    $a->[1] <=> $b->[1]
+map:
+    [$_, $foo{$_}]
+keys %foo
 
 is_deeply \@st, [qw(zoo baz bar moo)]
 

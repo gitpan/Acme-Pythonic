@@ -31,6 +31,8 @@ my $k = 1
 do:
     $k *= 2
     $k += 1
+# The module should be robust
+# to these comments after a do {}
 while $k < 10
 
 is $k, 15

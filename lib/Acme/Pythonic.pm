@@ -1,36 +1,42 @@
 package Acme::Pythonic;
 
 # Please, if you tested it in some earlier version of Perl and works let
-# me know! The versions of Filter::Simple and Test::More would be useful
-# as well, since they are put in Makefile.PL.
+# me know! The versions of Filter::Simple, Text::Tabs, and Test::More
+# would be useful as well.
 use 5.008002;
 use strict;
 use warnings;
 
-use vars qw($VERSION $DEBUG);
-$VERSION = '0.03';
+use vars qw($VERSION $DEBUG %SM);
+$VERSION = '0.1';
 
 use Text::Tabs;
 
 sub import {
     my ($package, %cfg) = @_;
     $DEBUG = $cfg{debug};
+    # Undocumented, just an idea I'm exploring.
+    if (exists $cfg{'(&)'}) {
+        $cfg{'(&)'} = [$cfg{'(&)'}] unless ref $cfg{'(&)'} eq 'ARRAY';
+    } else {
+        $cfg{'(&)'} = [];
+    }
+    %SM = map { $_ => 1 } ('do', 'sub', 'eval', @{$cfg{'(&)'}});
 }
 
 use Filter::Simple;
 FILTER_ONLY code => sub {
-    # The order of execution matters.
     normalize_newlines();
     join_continuation_lines();
-    remove_comments();
-    join_lines_ending_in_commas();
 
     my $lines = [ split /\n/ ];
     uncolonize_and_parenthesize($lines);
     semicolonize_and_bracketize($lines);
-    move_semicolons($lines);
 
     $_ = join "\n", @$lines;
+    fix_modifiers();
+    fix_dangling_else_and_friends();
+
     if ($DEBUG) {
         print "$_\n";
         $_ = "1;\n";
@@ -42,20 +48,26 @@ FILTER_ONLY code => sub {
 # because an identifier cannot be backtracked.
 my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
 
+
 # In the trials I've done seems like the Python interpreter understands
 # any of the three conventions, even if they are not the ones in the
 # platform, and even if they are mixed in the same file.
 sub normalize_newlines {
+    s/\015\012/\n/g;
     tr/\015/\n/;
     tr/\012/\n/;
-    s/\n+/\n/g;
 }
 
 
-# We remove continuation lines in one shot. This subroutine have to be
-# called _before_ comments are removed, see remove_comments.
+# Joins lines ending with a backslash.
+#
+# In Python a line that ends in a backslash cannot contain a comment,
+# but we allow it.
 sub join_continuation_lines {
-    s/\\\n\s*//g;
+    # put a dummy space in backslashes at the end of comments
+    my $undo = s/(?<!\$)(#.*)\\\n/$1 \n/g;
+    s/\\\n//g;
+    s/(?<!\$)(#.*)\\ \n/$1\n/g if $undo;
 }
 
 
@@ -66,38 +78,41 @@ sub join_continuation_lines {
 sub uncolonize_and_parenthesize {
     my $lines = shift;
 
-    foreach my $line (@$lines) {
+    foreach (@$lines) {
         # We check the parity of the number of ending colons to try to
         # avoid breaking
         #
         #    print for keys %main::
         #
-        next unless $line =~ /(:+)\s*$/ && length($1) % 2;
+        next unless /(:+)\s*$/ && length($1) % 2;
+        next if /^\s*#/; # skip comments
 
-        if ($line =~ /^\s*($id)\s*:\s*$/o) {
+        if (/^\s*($id)\s*:\s*$/o) {
             # Labels cannot have lower-case letters in Acme::Pythonic.
-            $line =~ s/:\s*$// if $1 =~ /[[:lower:]]/;
+            s/:\s*$// if $1 =~ /[[:lower:]]/;
             next;
         }
 
-        # we can safely remove the ending colon now
-        $line =~ s/:\s*$//;
+        # We can safely remove the ending colon now.
+        s/:\s*$//;
 
-        # subroutines are ok this way
-        next if $line =~ /^\s*sub\b/;
+        # Subroutine definitions are ok this way.
+        next if /^\s*sub\b/;
 
-        # these need parens after the keyword
-        next if $line =~ s/^(\s* if    ) (.*)$/$1 ($2)/x;
-        next if $line =~ s/^(\s* elsif ) (.*)$/$1 ($2)/x;
-        next if $line =~ s/^(\s* unless) (.*)$/$1 ($2)/x;
+        # These need parens after the keyword.
+        next if s/^(\s* if     \s*) (.*)$/$1($2)/x;
+        next if s/^(\s* elsif  \s*) (.*)$/$1($2)/x;
+        next if s/^(\s* unless \s*) (.*)$/$1($2)/x;
 
-        # these may be preceded by a label
-        next if $line =~ s/^(\s* (?:$id\s*:)? \s* while) (.*)$/$1 ($2)/ox;
-        next if $line =~ s/^(\s* (?:$id\s*:)? \s* until) (.*)$/$1 ($2)/ox;
+        # These may be preceded by a label.
+        next if s/^(\s* (?:$id\s*:)? \s* while \s*) (.*)$/$1($2)/ox;
+        next if s/^(\s* (?:$id\s*:)? \s* until \s*) (.*)$/$1($2)/ox;
 
-        # try your best with fors
-        next if $line =~ s/^(\s* (?:$id\s*:\s*)? for(?:each)?) (.*)$/fortype_guesser($1,$2)/oxe;
+        # Try your best with fors.
+        next if s/^(\s* (?:$id\s*:\s*)? for(?:each)?\s*) (.*)$/fortype_guesser($1,$2)/oxe;
     }
+
+    return $lines;
 }
 
 
@@ -110,140 +125,86 @@ sub fortype_guesser {
     my $guess = "";
 
     # Try to match "for VAR in LIST", and "for VAR LIST"
-    if ($rest =~ m/^(\s* (?:my|our)? \s* \$ $id) \s+in ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox ||
-        $rest =~ m/^(\s* (?:my|our)? \s* \$ $id)       ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox) {
-        $guess = "$for $1 ($2)";
+    if ($rest =~ m/^((?:my|our)? \s* \$ $id) \s+in ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox ||
+        $rest =~ m/^((?:my|our)? \s* \$ $id)       ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox) {
+        $guess = "$for$1 ($2)";
     } else {
         # We are not sure whether this is a for or a foreach, but it is
         # very likely that putting parens around gets it right.
         $rest =~ s/^\s*in\b//; # fixes "foreach in LIST"
-        $guess = "$for ($rest)";
+        $guess = "$for($rest)";
     }
 
     return $guess;
 }
 
 
-# Tries its best at figuring out blocks, and putting semicolons.
+# Tries its best at putting semicolons and figuring out blocks.
+# Language::Pythonesque was the basis of this subroutine.
 #
 # Modifies @$lines in place.
-#
-# Language::Pythonesque was the basis of this subroutine. We keep its
-# way to put semicolons by now (they are prepended to the _next_ line),
-#
-# They won't be in their correct place in general, however, because
-# whilst
-#
-#    my $a = 3
-#    ;print $a
-#
-# is valid, that does not work with POD, for instance:
-#
-#    my $a = 3
-#
-#    =pod
-#
-#    POD section
-#
-#    =cut
-#
-#    ;print $a
-#
-# does not compile.
-#
-# Thus, after this subroutine some cleanup has to be done. That's the
-# job of move_semicolons().
 sub semicolonize_and_bracketize {
     my $lines = shift;
+    return unless @$lines;
 
-    my @stack = ();
+    my $prev_indent;
     my $prev_line;
+    my @stack = ();
+
+    # We add an extran non-indented line to ensure the stack gets emptied.
+    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] =~ /^\s+/ || $lines->[-1] eq '';
     foreach my $line (@$lines) {
-        next if $line =~ /^[\s$;]*$/; # skip blank lines
+        next unless $line =~ /\S/; # skip blank lines
+        next if $line =~ /^\s*#/;  # skip comments
 
-        my $orig_line = $line;
-        my ($indent) = $line =~ /^(\s*)/;
-        $indent = length(expand($indent));
-        my $prev_indent = @stack ? $stack[-1]{indent} : 0;
-        if ($prev_indent < $indent) {
-            my ($prev_word) = $prev_line =~ /(\w+)\s*$/;
-            $line =~ s/^(\s*)pass\s*$/$1/;
-            my $spc = ' ' x $prev_indent;
-            push @stack, {indent => $indent, prev_word => $prev_word};
-            $line =~ s/^/$spc\{\n/;
-        } elsif ($prev_indent > $indent) {
-            my $close = '';
-            while ($prev_indent > $indent) {
-                my $prev_word = $stack[-1]{prev_word};
-                pop @stack;
-                $prev_indent = @stack ? $stack[-1]{indent} : 0;
-                my $spc = ' ' x $prev_indent;
-                $close .= "$spc}";
-                $close .= ";" if defined $prev_word && $prev_word =~ /^(?:sub|do|eval)$/;
-                $close .= "\n";
-            }
-            $line =~ s/^/$close/;
-        } elsif (defined $prev_line && $prev_line !~ /^\s*$id:\s*$/o) {
-            # putting the colon at the left of the first non-blank
-            # character improves readability in debug mode
-            $line =~ s/^/;/;
+        my ($indent, $joining);
+        if (defined $prev_line && ($$prev_line =~ m'(?:,|=>)\s*(?<!$)#' || $$prev_line =~ m'(?:,|=>)\s*$')) {
+            # This is done this way because comments are allowed in implicit line joining, see
+            # http://www.python.org/doc/2.3.3/ref/implicit-joining.html
+            $indent = $prev_indent;
+            $joining = 1;
+        } else {
+            ($indent) = $line =~ /^(\s*)/;
+            $indent = length(expand($indent));
         }
-        $prev_line = $orig_line;
-    }
-
-    # Close dangling blocks
-    my $close;
-    while (@stack) {
-        my $prev_word = $stack[-1]{prev_word};
-        pop @stack;
-        my $prev_indent = @stack ? $stack[-1]{indent} : 0;
-        my $spc = ' ' x $prev_indent;
-        $close .= "$spc}";
-        $close .= ";" if defined $prev_word && $prev_word =~ /^(?:sub|do|eval)$/;
-        $close .= "\n";
-    }
-    push @$lines, $close if defined $close;
-}
-
-
-# See semicolonize_and_bracketize().
-#
-# This has finally become a bit dirty. Both subroutines should be
-# refactored.
-sub move_semicolons {
-    my $lines = shift;
-
-    my $current_line_ref;
-    my $i;
-    for ($i = 0; $i < @$lines; ++$i) {
-        next if $lines->[$i] =~ /^[\s$;]*$/; # skip blank lines
-        $current_line_ref = \$lines->[$i];
-        last;
-    }
-
-    for (++$i; $i < @$lines; ++$i) {
-        my $next_line_ref = \$lines->[$i];
-        next if $$next_line_ref =~ /^[\s$;]*$/; # skip blank lines
-        $$current_line_ref .= ";" if $$next_line_ref =~ s/^;//;
-        # this fixes do {}; modifier -> do {} modifier
-        # note that @$lines does no correspond with physical lines
-        $$current_line_ref =~ s/};(?=\s*(?:if|unless|while|until|for(?:each)?)\b.*;$)/}/;
-        $current_line_ref = $next_line_ref;
+        my $current_indent = @stack ? $stack[-1]{indent} : 0;
+        if ($current_indent < $indent) {
+            my ($label) = $$prev_line =~ /(?<![\$\@%&])($id)\s*$/;
+            $line =~ s/^\s*pass\s*$//;
+            push @stack, {indent => $indent, label => $label};
+            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*(?<!$)#)/ {/;
+        } elsif ($current_indent > $indent) {
+            my $close = '';
+            while ($current_indent > $indent) {
+                my $label = $stack[-1]{label};
+                pop @stack;
+                $current_indent = @stack ? $stack[-1]{indent} : 0;
+                $close .= "\n" . (' ' x $current_indent) . "}";
+                $close .= ";" if defined $label && exists $SM{$label};
+            }
+            $$prev_line .= $close;
+        } elsif (defined $prev_line && !$joining && $$prev_line !~ /$id:\s*$/o) {
+            # Put a semicolon at the right of the previous line but be
+            # careful with comments.
+            $$prev_line .= ";" unless $$prev_line =~ s/(?=\s*(?<!\$)#)/;/;
+        }
+        $prev_line = \$line;
+        $prev_indent = $indent;
     }
 }
 
 
-# Removes comments and any whitespace to their left.  This subroutine
-# has to be called after the one that removes continuation lines,
-sub remove_comments {
-    s/[ \t]*(?<!\$)#.*//g;
+# Removes the semicolon and newline in do {}; if EXPR; and friends.
+# Note that now an element of @$lines can contain a newline.
+sub fix_modifiers {
+    my $comments = qr/(?:\s*(?<!\$)#.*\n)*/;
+    s/};(?=$comments\s*(?:if|unless|while|until|for(?:each)?)\b.*;$)/} /mog;
 }
 
 
-# Python forgives continuation lines in list constructors and friends.
-sub join_lines_ending_in_commas {
-    s/,\n\s*/,/g;
-    s/=>\n\s*/=>/g;
+# We follow perlstyle here, as we did until now.
+sub fix_dangling_else_and_friends {
+    s/(?<=})\s*(?=elsif|else|continue)/ /g;
 }
 
 1;
@@ -258,27 +219,31 @@ Acme::Pythonic - Python whitespace conventions for Perl
 
  use Acme::Pythonic; # this semicolon yet needed
 
- for my $n in 1..1000:
-     while $n != 1:
-         if $n % 2:
-             $n = 3*$n + 1
-         else:
-             $n /= 2
+ sub exp_mod:
+     use integer
+     my ($i, $j, $n) = @_
+     my $r = 1
+     while $j:
+         if $j % 2:
+             $r = ($i*$r) % $n
+         $j >>= 1
+         $i = ($i**2) % $n
+     return $r
 
 =head1 DESCRIPTION
 
 Acme::Pythonic is a source filter that brings Python whitespace
 conventions to Perl.
 
-This module is thought for those who embrace contradictions. It is an
-aid for those who are in an intermediate level, walking the Whitespace
-Matters Way in their pursuit of highest realization, only attained with
-L<SuperPython>.
+This module is thought for those who embrace contradictions. A humble
+aid for walkers of the Whitespace Matters Way in their pursuit of
+highest realization, only attained with L<SuperPython>.
+
+=head1 DETAILS
 
 =head2 Labels
 
-Labels are supported. This is the Acme::Pythonic version of the example
-in perlsyn:
+This is the Acme::Pythonic version of the example in L<perlsyn>:
 
     OUTER: for my $wid in @ary1:
         INNER: for my $jet in @ary2:
@@ -311,12 +276,12 @@ Labels can be composed just of upper-case letters. That was decided so
 that list operators can be chained:
 
     my @st = map:
-                 $_->[0]
-             sort:
-                 $a->[1] <=> $b->[1]
-             map:
-                 [$_, $foo{$_}]
-             keys %foo
+        $_->[0]
+    sort:
+        $a->[1] <=> $b->[1]
+    map:
+        [$_, $foo{$_}]
+    keys %foo
 
 and C<&>-prototyped subroutines can be used like this:
 
@@ -324,17 +289,17 @@ and C<&>-prototyped subroutines can be used like this:
         my $code = shift
         my @result
         foreach @_:
-            push @result, $_ if &$code;
-        return @result;
+            push @result, $_ if &$code
+        return @result
 
     @array = mygrep:
-                 my $aux = $_
-                 $aux *= 3
-                 $aux += 1
-                 $aux % 2
-             reverse 0..5
+        my $aux = $_
+        $aux *= 3
+        $aux += 1
+        $aux % 2
+    reverse 0..5
 
-as long as the rightmost parameter is not of type C<&>.
+Nevertheless support for this has to be improved, see L<LIMITATIONS>.
 
 =head2 C<do/while>-like constructs
 
@@ -397,25 +362,51 @@ using a backslash at the end:
 
 and in that case the indentation of those additional lines is irrelevant.
 
+Unlike Python, we ignore backslashes that end a line in a comment:
+
+    my $a = 1  # this comment ends in a backslash, no problem \
+
+There's no technical reason for this, only it does not belong to the
+whitespace conventions we are trying to mimick.
+
 =head2 Ending commas
 
-If a line ends in a comma or arrow (C<< => >>) it is joined with the
-following. This way we support
+If a line ends in a comma or arrow (C<< => >>) it is conceptually joined
+with the following:
 
     my %authors = (Perl   => "Larry Wall",
                    Python => "Guido van Rossum")
 
-which works in Python as well.
+As in Python, comments can be intermixed there:
+
+    my %hello = (Catalan => 'Hola',  # my mother tongue
+                 English => 'Hello)
 
 =head1 LIMITATIONS
 
-Keywords followed by code in the same line are not supported. This would
+Keywords followed by code in the same line are C<not> supported. This would
 be valid in Python:
 
     if $n % 2: $n = 3*$n + 1
     else: $n /= 2
 
-but it does not work in Acme::Pythonic.
+but it does not work in Acme::Pythonic. The reason for this is that it
+would be hard to identify the colon that closes the expression without
+parsing Perl, consider for instance:
+
+    if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
+
+On the other hand, to use a subroutine with prototype C<(&)> you need to
+add the trailing semicolon in its own line by now:
+
+    sub foo (&):
+        pass
+
+    foo:
+        pass
+    ;
+
+That's a pity, improving this is in the TODO list.
 
 =head1 DEBUG
 
@@ -426,6 +417,9 @@ You can pass a C<debug> flag to Acme::Pythonic like this:
 In debug mode the module prints to standard output the code it has
 generated and substitutes everything with a dummy C<1;>, so nothing gets
 executed. This way the resulting source can be inspected.
+
+The module tries to generate human readable code following L<perlstyle>.
+Blank lines and comments are preserved.
 
 This happens I<before> L<Filter::Simple> undoes the blanking out of
 PODs, strings, and regexps. Thus, those parts will be seen as C<$;>s in

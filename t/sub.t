@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 
@@ -13,26 +13,6 @@ sub foo:
     return $i
 
 is foo, 7
-
-# ----------------------------------------------------------------------
-
-sub mygrep (&@):
-    my $code = shift
-    my @result
-    foreach @_:
-        push @result, $_ if &$code;
-    return @result;
-
-my @array = mygrep { $_ % 2 } 0..5;
-is_deeply \@array, [1, 3, 5]
-
-@array = mygrep:
-             my $aux = $_
-             $aux *= 3
-             $aux += 1
-             $aux % 2
-         reverse 0..5
-is_deeply \@array, [4, 2, 0]
 
 # ----------------------------------------------------------------------
 
@@ -54,17 +34,17 @@ is $fib->(5), 5
 
 # ----------------------------------------------------------------------
 
-sub count_3n_plus_1_steps:
+sub count_collatz_steps:
     my $n = shift
-    my $steps = 0
+    my $steps = 0 # do we put a semicolon here?
     while $n != 1:
         $steps++
         if $n % 2:
             $n = 3*$n + 1
         else:
-            $n /= 2
+            $n /= 2 # there is a variant that removes all even factors
     $steps
 
-is count_3n_plus_1_steps(1), 0
-is count_3n_plus_1_steps(2), 1
-is count_3n_plus_1_steps(5), 5
+is count_collatz_steps(1), 0
+is count_collatz_steps(2), 1
+is count_collatz_steps(5), 5

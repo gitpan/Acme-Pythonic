@@ -1,10 +1,17 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.1
+     - More tests
+     - Implicit line joining is more Pythonic
+     - Comments and blank lines are preserved
+     - Genereated code tries to follow perlstyle
+     - Refactoring
+
 0.03 Mon May 24 23:36:55 2004
      - More tests
      - pass wasn't being ignored at the beginning of line
      - Fixed a bug handling fors
-     - More documentation fixes.
+     - More documentation fixes
 
 0.02 Mon May 24 15:31:42 2004
 	- Minor fixes in documentation

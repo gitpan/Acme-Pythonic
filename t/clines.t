@@ -19,15 +19,15 @@ is foo, 7
 
 sub mygrep (&@):
     my $code = shift
-    my @result
+    my @result         # we support comments ending in a backslash \
     foreach @_:
         push @result, \
              $_ \
              if \
-             &$code;
-    return @result;
+             &$code
+    return @result
 
-my @array = mygrep { $_ % 2 } 0..5;
+my @array = mygrep { $_ % 2 } 0..5
 is_deeply \@array, [1, 3, 5]
 
 # ----------------------------------------------------------------------

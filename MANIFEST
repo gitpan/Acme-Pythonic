@@ -2,7 +2,9 @@ Changes
 Makefile.PL
 MANIFEST
 README
+t/algorithms.t
 t/clines.t
+t/dangling.t
 t/do.t
 t/eval.t
 t/for.t
@@ -13,6 +15,7 @@ t/map.t
 t/noindent.t
 t/pod.t
 t/sub.t
+t/subproto.t
 t/unless.t
 t/until.t
 t/use.t

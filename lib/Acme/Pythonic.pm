@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.31';
+$VERSION = '0.32';
 
 use Text::Tabs;
 
@@ -248,6 +248,27 @@ This module is thought for those who embrace contradictions. A humble
 aid for walkers of the Whitespace Matters Way in their pursuit of
 highest realization, only attained with L<SuperPython>.
 
+=head1 OVERVIEW
+
+Acme::Pythonic provides I<grosso modo> these conventions:
+
+* Blocks are marked by indentation and an opening colon instead of braces.
+
+* Simple statements are separated by newlines instead of semicolons.
+
+* EXPRs in control flow structures do not need parentheses around.
+
+Additionally, the filter understands the keywords C<pass> and C<in>.
+
+This snippet summarizes the idea:
+
+    foreach my $n in 1..100:
+        while $n != 1:
+            if $n % 2:
+                $n = 3*$n + 1
+            else:
+                $n /= 2
+
 =head1 DETAILS
 
 =head2 Labels
@@ -292,12 +313,13 @@ that list operators can be chained:
         [$_, $foo{$_}]
     keys %foo
 
-In addition, "BEGIN", "CHECK", "INIT", "END", cannot be labels because
+In addition, "BEGIN", "CHECK", "INIT", "END", cannot be labels because,
+for example,
 
     BEGIN:
         $foo = 3
 
-is treated as a BEGIN block, for example.
+is treated as a BEGIN block hence the colon is removed.
 
 =head2 C<do/while>-like constructs
 
@@ -428,6 +450,13 @@ As in Python, comments can be intermixed there:
     my %hello = (Catalan => 'Hola',   # my mother tongue
                  English => 'Hello',)
 
+
+Acme::Pythonic munges a source that has already been processed by L<Filter::Simple>. In particular, L<Filter::Simple> blanks out quotelikes whose content is not even seen by Acme::Pythonic so backslashes in C<qw//> and friends won't be removed and will produce a syntax error:
+
+    # Do not put backslashes here because qw// is bypassed
+    my @colors = qw(Red
+                    Blue
+                    Green)
 
 =head1 LIMITATIONS
 

@@ -1,5 +1,9 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.32 Sat Jun 19 16:09:44 2004
+    - Added OVERVIEW to POD.
+    - Minor documentation enhancements.
+
 0.31 Sat Jun 12 14:58:32 2004
     - Test::More required version relaxed to 0.45.
     - Perl required version relaxed to 5.8.0.

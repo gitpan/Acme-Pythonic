@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG);
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 use Text::Tabs;
 
@@ -280,7 +280,6 @@ L<SuperPython>.
 Labels are supported. This is the Acme::Pythonic version of the example
 in perlsyn:
 
-    @ary1 = (2, 1, 0)
     OUTER: for my $wid in @ary1:
         INNER: for my $jet in @ary2:
             next OUTER if $wid > $jet
@@ -298,7 +297,6 @@ Note that if we put a label in the line before in a control structure
 indentation matters. This would be a non-equivalent reformat of the
 example above:
 
-    @ary1 = (2, 1, 0)
     OUTER:
         for my $wid in @ary1:               # NOT WHAT WE WANT
             INNER:
@@ -386,9 +384,9 @@ but can't be used when the loop acts as a modifier:
 As in Python, you can break a logical line in several physical lines
 using a backslash at the end:
 
-    my $foo = total_products() + \
-              total_delivery() + \
-              total_taxes()
+    my $total = total_products() + \
+                total_delivery() + \
+                total_taxes()
 
 and in that case the indentation of those additional lines is irrelevant.
 
@@ -398,7 +396,7 @@ If a line ends in a comma or arrow (C<< => >>) it is joined with the
 following. This way we support
 
     my %authors = (Perl   => "Larry Wall",
-                   Python => "Guido Van Rossum")
+                   Python => "Guido van Rossum")
 
 which works in Python as well.
 

@@ -1,5 +1,9 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.21
+    - Fixed a minor mistake in the POD.
+    - Comments needed a revision after the refactoring. Done.
+
 0.20 Wed Jun  2 23:21:27 2004
     - Main algorithm rewritten, unpythonization is done in one pass now.
     - Added complete support for line joining, as in

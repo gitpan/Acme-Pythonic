@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.20';
+$VERSION = '0.21';
 
 use Text::Tabs;
 
@@ -22,10 +22,10 @@ sub import {
 use Filter::Simple;
 FILTER_ONLY code => sub {
     unpythonize();
-
+    uncuddle_elses_and_friends();
     if ($DEBUG) {
         print;
-        $_ = "1;";
+        $_ = '1;';
     }
 };
 
@@ -34,17 +34,13 @@ FILTER_ONLY code => sub {
 # because an identifier cannot be backtracked.
 my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
 
-# Shorthand to add a possible trailing comment to some regexps.
+# Shorthand to put an eventual trailing comment in some regexps.
 my $tc = qr/(?<!\$)#.*/;
 
 
-# Tries its best at putting semicolons and figuring out blocks.
-# Language::Pythonesque was the basis of this subroutine.
-#
-# Modifies @$lines in place.
+# Tries its best at converting Pythonic code to Perl.
 sub unpythonize {
     normalize_newlines();
-
     my @lines  = split /\n/;
     return unless @lines;
 
@@ -52,8 +48,15 @@ sub unpythonize {
     # non-indented line to ensure the stack gets emptied.
     push @lines, '1; # added by Acme::Pythonic' if $lines[-1] =~ /^(?:\s|\s*#)/;
 
-    my ($comment, $modifier, $indent, $prev_bob, $prev_nonblank, $prev_modifier);
-    my ($joining, $unbalanced_paren, $bracket_opened_by);
+    my ($comment,          # trailing comment in the current line, if any
+        $indent,           # indentation level of the current logical line
+        $sob,              # the word that started a block, for instance "else", or "eval"
+        $prev_nonblank,    # previous line with actual code
+        $modifier,         # flag: current logical line might be a modifier
+        $start_modifier,   # phisical line that started the current modifier
+        $joining,          # flag: are we joining lines?
+        $unbalanced_paren, # flag: we opened a paren that remains to be closed
+       );
     my @stack = ();
 
     foreach my $line (@lines) {
@@ -68,14 +71,14 @@ sub unpythonize {
         # Line joining.
         if (!$joining) {
             $modifier = $line =~ /^\s*(?:if|unless|while|until|for|foreach)\b/;
-            $prev_modifier = \$line if $modifier;
+            $start_modifier = \$line if $modifier;
             ($indent) = $line =~ /^(\s*)/;
             $indent = length(expand($indent));
         }
 
         if ($line =~ /(?:,|=>)\s*$/ || $line =~ s/\\\s*$//) {
             ++$joining;
-            next if $joining > 1;
+            next if $joining > 1; # if 1 we need yet to handle indentation
         } else {
             $joining = 0;
         }
@@ -89,53 +92,55 @@ sub unpythonize {
         #
         #    print for keys %main::
         #
+        my $bracket_opened_by = '';
         if ($line =~ /(:+)$/ && length($1) % 2) {
             $modifier = 0;
             unless ($line =~ /^\s*($id):$/o && $1 !~ /[[:lower:]]/) {
-                $line =~ s/:\s*$//;
+                chop $line;
                 if ($unbalanced_paren) {
                     $line .= ")";
                     $unbalanced_paren = 0;
-                    $bracket_opened_by = '';
                 } else {
                     ($bracket_opened_by) = $line =~ /($id)\s*$/o;
                 }
             }
         } elsif (!$joining) {
-            $$prev_modifier =~ s/\(// if $modifier;
+            $$start_modifier =~ s/\(// if $modifier;
             $unbalanced_paren = 0;
             $line .= ';';
         }
 
-        # Handle indentation.
+        # Handle indentation. Language::Pythonesque was the basis of
+        # this code.
         my $prev_indent = @stack ? $stack[-1]{indent} : 0;
         if ($prev_indent < $indent) {
-            push @stack, {indent => $indent, bob => $prev_bob};
+            push @stack, {indent => $indent, sob => $sob};
             $$prev_nonblank .= " {" unless $$prev_nonblank =~ s/(?=\s*$tc)/ {/o;
         } elsif ($prev_indent > $indent) {
             do {
-                my $bob = $stack[-1]{bob};
+                my $prev_sob = $stack[-1]{sob};
                 pop @stack;
                 $prev_indent = @stack ? $stack[-1]{indent} : 0;
                 $$prev_nonblank .= "\n" . ((' ' x $prev_indent) . "}");
-                $$prev_nonblank .= ";" if needs_semicolon($bob);
+                $$prev_nonblank .= ";" if needs_semicolon($prev_sob);
             } while $prev_indent > $indent;
             $$prev_nonblank =~ s/;$// if $modifier;
         }
-        $prev_bob = $bracket_opened_by;
+        $sob = $bracket_opened_by;
     } continue {
         $prev_nonblank = \$line if !$joining && $line =~ /\S/;
         $line .= $comment;
     }
 
     $_ = join "\n", @lines;
-    s/(?<=})\s*(?=elsif|else|continue)/ /g;
 }
 
 
 # In the trials I've done seems like the Python interpreter understands
 # any of the three conventions, even if they are not the ones in the
 # platform, and even if they are mixed in the same file.
+#
+# In addition, it guarantees make test works no matter the platform.
 sub normalize_newlines {
     s/\015\012/\n/g;
     tr/\015/\n/;
@@ -143,6 +148,8 @@ sub normalize_newlines {
 }
 
 
+# Put an opening paren in the places we forgive parens. It will be later
+# closed or removed as needed in the main subroutine.
 sub left_parenthesize {
     $_[0] =~ s/^(\s*\b(?:if|elsif|unless)\b\s*)/$1(/                                      ||
     $_[0] =~ s/^(\s*(?:$id\s*:)?\s*\b(?:while|until)\b(\s*))/$2 eq '' ? "$1 (" : "$1("/eo ||
@@ -150,8 +157,9 @@ sub left_parenthesize {
 }
 
 
-# Tries its best at guessing a for(each) type or, at least, how to put
-# an opening paren. Returns the string to be substituted.
+# Tries its best at guessing a for(each) type or, at least, where to put
+# the opening paren. Returns a string which is a copy of the original
+# with the paren inserted.
 sub fortype_guesser {
     my ($for, $rest) = @_;
     my $guess = "";
@@ -171,15 +179,18 @@ sub fortype_guesser {
 }
 
 
+# Guesses whether a block started by $sob needs a semicolon after the
+# ending bracket.
 sub needs_semicolon {
-    my $bob = shift;
-    return 0 if !$bob;
-    return 1 if $bob =~ /^(do|sub|eval)$/;
+    my $sob = shift;
+    return 0 if !$sob;
+    return 1 if $sob =~ /^(do|sub|eval)$/;
 
-    my $proto = prototype("${CALLER}::$bob");
+    my $proto = prototype("${CALLER}::$sob");
     return 0 if not defined $proto;
     return $proto =~ /^;?&$/;
 }
+
 
 # Removes the semicolon and newline in do {}; if EXPR; and friends.
 sub fix_modifiers {
@@ -189,7 +200,7 @@ sub fix_modifiers {
 
 
 # We follow perlstyle here, as we did until now.
-sub fix_dangling_else_and_friends {
+sub uncuddle_elses_and_friends {
     s/(?<=})\s*(?=elsif|else|continue)/ /g;
 }
 
@@ -398,8 +409,6 @@ As in Python, comments can be intermixed there:
 
     my %hello = (Catalan => 'Hola',   # my mother tongue
                  English => 'Hello',)
-
-See L</LIMITATIONS> however.
 
 
 =head1 LIMITATIONS

@@ -1,5 +1,12 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.13 Sun May 30 00:37:12 2004
+    - Added manhattan_intersection() implementation to t/algorithms.t
+    - Fixed: Broken code was being generated in lines with comments
+      following a Pythonic colon.
+    - Better conformance to perlstyle in some foreach patterns.
+    - Handling of continuation lines simplified.
+
 0.12 Sat May 29 02:23:53 2004
      - Added bubblesort in t/algorithms.t
      - The code that inserts " {"s was breaking $#array, fixed.

@@ -3,7 +3,7 @@
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic;
+use Acme::Pythonic debug => 0;
 
 # ----------------------------------------------------------------------
 
@@ -35,5 +35,4 @@ $n = 1
 if 1:
     ignore:
         $n = 2
-    ; # this semicolon is needed by now
 is $n, 1

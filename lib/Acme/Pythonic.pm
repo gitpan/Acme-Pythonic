@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG %SM);
-$VERSION = '0.12';
+$VERSION = '0.13';
 
 use Text::Tabs;
 
@@ -28,7 +28,6 @@ sub import {
 use Filter::Simple;
 FILTER_ONLY code => sub {
     normalize_newlines();
-    join_continuation_lines();
 
     my $lines = [ split /\n/ ];
     uncolonize_and_parenthesize($lines);
@@ -49,6 +48,9 @@ FILTER_ONLY code => sub {
 # because an identifier cannot be backtracked.
 my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
 
+# Shorthand to add a possible trailing comment to some regexps.
+my $tc = qr/(?<!\$)#.*/;
+
 
 # In the trials I've done seems like the Python interpreter understands
 # any of the three conventions, even if they are not the ones in the
@@ -57,18 +59,6 @@ sub normalize_newlines {
     s/\015\012/\n/g;
     tr/\015/\n/;
     tr/\012/\n/;
-}
-
-
-# Joins lines ending with a backslash.
-#
-# In Python a line that ends in a backslash cannot contain a comment,
-# but we allow it.
-sub join_continuation_lines {
-    # put a dummy space in backslashes at the end of comments
-    my $undo = s/(?<!\$)(#.*\\ *)\n/$1 \n/g;
-    s/\\\n//g;
-    s/(?<!\$)(#.*\\ *) \n/$1\n/g if $undo;
 }
 
 
@@ -85,7 +75,7 @@ sub uncolonize_and_parenthesize {
         #
         #    print for keys %main::
         #
-        next unless /(:+)\s*$/ && length($1) % 2;
+        next unless /(:+) (\s* $tc?) $/ox && length($1) % 2;
         next if /^\s*#/; # skip comments
 
         if (/^\s*($id)\s*:\s*$/o) {
@@ -95,19 +85,19 @@ sub uncolonize_and_parenthesize {
         }
 
         # We can safely remove the ending colon now.
-        s/:\s*$//;
+        s/: (\s* $tc?) $/$1/ox;
 
         # Subroutine definitions are ok this way.
         next if /^\s*sub\b/;
 
         # These need parens after the keyword.
-        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*)$/$1($2)/x;
+        next if s/^(\s* \b(?:if|elsif|unless)\b \s*) (.*?) (\s* $tc?) $/$1($2)$3/x;
 
         # These may be preceded by a label.
-        next if s/^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*)$/$1($2)/ox;
+        next if s/^(\s* (?:$id\s*:)? \s* \b(?:while|until)\b \s*) (.*) (\s* $tc?) $/$1($2)$3/ox;
 
         # Try your best with fors.
-        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*)$/fortype_guesser($1,$2)/oxe;
+        next if s/^(\s* (?:$id\s*:\s*)? \bfor(?:each)?\b \s*) (.*) (\s* $tc?) $/fortype_guesser($1,$2).$3/oxe;
     }
 }
 
@@ -121,9 +111,9 @@ sub fortype_guesser {
     my $guess = "";
 
     # Try to match "for VAR in LIST", and "for VAR LIST"
-    if ($rest =~ m/^((?:my|our)? \s* \$ $id) \s+in ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox ||
-        $rest =~ m/^((?:my|our)? \s* \$ $id)       ((?: (?:\s*[\$\@%&\\]) | (?:\s+ \w) ) .*)$/ox) {
-        $guess = "$for$1 ($2)";
+    if ($rest =~ m/^((?:my|our)? \s* \$ $id\s+) in\s* ((?: (?:[\$\@%&\\]) | (?:\b\w) ) .*)$/ox ||
+        $rest =~ m/^((?:my|our)? \s* \$ $id\s*)       ((?: (?:[\$\@%&\\]) | (?:\b\w) ) .*)$/ox) {
+        $guess = "$for$1($2)";
     } else {
         # We are not sure whether this is a for or a foreach, but it is
         # very likely that putting parens around gets it right.
@@ -154,16 +144,17 @@ sub semicolonize_and_bracketize {
         next unless $line =~ /\S/; # skip blank lines
         next if $line =~ /^\s*#/;  # skip comments
 
-        my ($indent, $joining);
-        if (defined $prev_line && ($$prev_line =~ m'(?:,|=>)\s*(?<!$)#' || $$prev_line =~ m'(?:,|=>)\s*$')) {
+        if (defined $prev_line &&
+            (($$prev_line =~ m'(?:,|=>)\s*(?<!$)#' || $$prev_line =~ m'(?:,|=>)\s*$') ||
+             ($$prev_line !~ m'(?<!$)#' && $$prev_line =~ s/\\$//))) {
             # This is done this way because comments are allowed in implicit line joining, see
             # http://www.python.org/doc/2.3.3/ref/implicit-joining.html
-            $indent = $prev_indent;
-            $joining = 1;
-        } else {
-            ($indent) = $line =~ /^(\s*)/;
-            $indent = length(expand($indent));
+            $prev_line = \$line;
+            next;
         }
+
+        my ($indent) = $line =~ /^(\s*)/;
+        $indent = length(expand($indent));
         my $current_indent = @stack ? $stack[-1]{indent} : 0;
         if ($current_indent < $indent) {
             my ($label) = $$prev_line =~ /(?<![\$\@%&])($id)\s*$/;
@@ -180,7 +171,7 @@ sub semicolonize_and_bracketize {
                 $close .= ";" if defined $label && exists $SM{$label};
             }
             $$prev_line .= $close;
-        } elsif (defined $prev_line && !$joining && $$prev_line !~ /$id:\s*$/o) {
+        } elsif (defined $prev_line && $$prev_line !~ /$id:\s*$/o) {
             # Put a semicolon at the right of the previous line but be
             # careful with comments.
             $$prev_line .= ";" unless $$prev_line =~ s/(?=\s*(?<!\$)#)/;/;
@@ -426,6 +417,7 @@ This module uses a regexp approach and the superb help of
 Filter::Simple. The regexp part of this means it is broken from the
 start, though I've tried hard to make it as robust as I could. Bug
 reports will be very welcome, just drop me a line!
+
 
 =head1 THANKS
 

@@ -1,5 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.25 Wed Jun  9 09:55:55 2004
+    - Minor cleanup.
+    - Better t/pass.t.
+    - Uses $Filter::Simple::placeholder instead of explicit patterns.
+
 0.24 Tue Jun  8 03:29:09 2004
     - Minor documentarion fixes.
     - Added t/pass.t.

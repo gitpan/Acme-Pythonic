@@ -1,11 +1,13 @@
 # -*- Model: Python -*-
 
-use Test::More 'no_plan';
+use Test::More tests => 4, import => ['is'];
 use Acme::Pythonic debug => 0;
+
+use strict
 
 # ----------------------------------------------------------------------
 
-$n = 10
+my $n = 10
 while --$n:
     pass
 

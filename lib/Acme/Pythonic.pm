@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.24';
+$VERSION = '0.25';
 
 use Text::Tabs;
 
@@ -24,7 +24,7 @@ FILTER_ONLY code => sub {
     unpythonize();
     uncuddle_elses_and_friends();
     if ($DEBUG) {
-        s/$;.*?$;/BLANKED_OUT/gs;
+        s/$Filter::Simple::placeholder/BLANKED_OUT/gs;
         print;
         $_ = '1;';
     }
@@ -45,9 +45,10 @@ sub unpythonize {
     # interferes with Pythonic conventions.
     my %bos = ();
     my $count = 0;
-    s($;.{4}$;)(my $bo = "$;BLANKED_OUT_".$count++."$;";
-                $bos{$bo} = $&;
-                $bo)gose;
+    s<$Filter::Simple::placeholder>
+     <my $bo = "$;BLANKED_OUT_".$count++."$;";
+      $bos{$bo} = $&;
+      $bo>gose;
 
     # In addition, we can now normalize newlines without breaking
     # Filter::Simple's identifiers.
@@ -59,7 +60,7 @@ sub unpythonize {
     # non-indented line to ensure the stack gets emptied.
     push @lines, '1; # added by Acme::Pythonic' if $lines[-1] =~ /^(?:\s|\s*#)/;
 
-    my ($comment,          # trailing comment in the current line, if any
+    my ($comment,          # comment in the current line, if any
         $indent,           # indentation level of the current logical line
         $sob,              # the word that started a block, for instance "else", or "eval"
         $prev_nonblank,    # previous line with actual code
@@ -67,9 +68,10 @@ sub unpythonize {
         $start_modifier,   # phisical line that started the current modifier
         $joining,          # flag: are we joining lines?
         $unbalanced_paren, # flag: we opened a paren that remains to be closed
+        @stack,            # keeps track of indentation stuff
        );
-    my @stack = ();
 
+    @stack = ();
     foreach my $line (@lines) {
         # We remove any trailing comment so that we can assert stuff
         # easily about the end of the code in this line. It is later
@@ -77,10 +79,8 @@ sub unpythonize {
         $comment = $line =~ s/(\s*$tc)//o ? $1 : '';
         next if $line =~ /^\s*$/;
 
-        $unbalanced_paren = left_parenthesize($line) unless $joining;
-
-        # Line joining.
         if (!$joining) {
+            $unbalanced_paren = left_parenthesize($line);
             $modifier = $line =~ /^\s*(?:if|unless|while|until|for|foreach)\b/;
             $start_modifier = \$line if $modifier;
             ($indent) = $line =~ /^(\s*)/;
@@ -172,8 +172,10 @@ sub left_parenthesize {
 
 
 # Tries its best at guessing a for(each) type or, at least, where to put
-# the opening paren. Returns a string which is a copy of the original
-# with the paren inserted.
+# the opening paren.
+#
+# Returns a string which is a copy of the original with the paren
+# inserted.
 sub fortype_guesser {
     my ($for, $rest) = @_;
     my $guess = "";

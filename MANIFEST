@@ -18,6 +18,7 @@ t/pass.t
 t/pod.t
 t/sub.t
 t/subproto.t
+t/text_wrap.t
 t/unless.t
 t/until.t
 t/use.t

@@ -2,7 +2,7 @@
 
 use warnings;
 
-package Bar;
+package Foo;
 sub bar (&);
 sub foo (&);
 sub twice (&);
@@ -29,6 +29,21 @@ is_deeply \@array, [1, 3, 5]
     $aux % 2
 reverse 0..5
 is_deeply \@array, [4, 2, 0]
+
+# ----------------------------------------------------------------------
+
+package Bar
+@array = Foo::mygrep { $_ % 2 } 0..5
+Test::More::is_deeply \@array, [1, 3, 5]
+
+@array = Foo::mygrep:
+    my $aux = $_
+    $aux *= 3
+    $aux += 1
+    $aux % 2
+reverse 0..5
+Test::More::is_deeply \@array, [4, 2, 0]
+package Foo
 
 # ----------------------------------------------------------------------
 

@@ -64,4 +64,15 @@ package foo
 our $bar = 3
 $bar = 5 if keys %foo::
 Test::More::is($bar, 5)
+package main
 
+# ----------------------------------------------------------------------
+
+$z = 0
+if $z == 1:
+    pass
+    # this closing bracket shouldn't confuse uncuddling }
+else:
+    ++$z
+
+is $z, 1

@@ -8,14 +8,14 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.25';
+$VERSION = '0.30';
 
 use Text::Tabs;
 
 sub import {
     my ($package, %cfg) = @_;
     $DEBUG = $cfg{debug};
-    $CALLER = caller()
+    $CALLER = caller() # to be able to check sub prototypes
 }
 
 
@@ -24,7 +24,7 @@ FILTER_ONLY code => sub {
     unpythonize();
     uncuddle_elses_and_friends();
     if ($DEBUG) {
-        s/$Filter::Simple::placeholder/BLANKED_OUT/gs;
+        s/$Filter::Simple::placeholder/BLANKED_OUT/g;
         print;
         $_ = '1;';
     }
@@ -48,7 +48,7 @@ sub unpythonize {
     s<$Filter::Simple::placeholder>
      <my $bo = "$;BLANKED_OUT_".$count++."$;";
       $bos{$bo} = $&;
-      $bo>gose;
+      $bo>geo;
 
     # In addition, we can now normalize newlines without breaking
     # Filter::Simple's identifiers.
@@ -94,7 +94,6 @@ sub unpythonize {
             $joining = 0;
         }
 
-
         # Handle trailing colons, which can be Pythonic, mark a labeled
         # block, mean some map, or &-sub call, etc.
         #
@@ -106,7 +105,10 @@ sub unpythonize {
         my $bracket_opened_by = '';
         if ($line =~ /(:+)$/ && length($1) % 2) {
             $modifier = 0;
-            unless ($line =~ /^\s*($id):$/o && $1 !~ /[[:lower:]]/) {
+            # We perform some checks because labels have to keep their colon.
+            if ($line !~ /^\s*$id:$/o ||
+                $line =~ /[[:lower:]]/ || # labels are not allowed to have lower-case letters
+                $line =~ /^\s*(?:BEGIN|CHECK|INIT|END):$/) {
                 chop $line;
                 if ($unbalanced_paren) {
                     $line .= ")";
@@ -202,7 +204,7 @@ sub needs_semicolon {
     return 0 if !$sob;
     return 1 if $sob =~ /^(do|sub|eval|constant)$/;
 
-    my $proto = prototype("${CALLER}::$sob");
+    my $proto = $sob =~ /::/ ? prototype($sob) : prototype("${CALLER}::$sob");
     return 0 if not defined $proto;
     return $proto =~ /^;?&$/;
 }
@@ -210,7 +212,7 @@ sub needs_semicolon {
 
 # We follow perlstyle here, as we did until now.
 sub uncuddle_elses_and_friends {
-    s/(?<=})\s*(?=elsif|else|continue)/ /g;
+    s/^(\s*})\s*(?=elsif|else|continue)/$1 /gm;
 }
 
 1;
@@ -289,6 +291,13 @@ that list operators can be chained:
     map:
         [$_, $foo{$_}]
     keys %foo
+
+In addition, "BEGIN", "CHECK", "INIT", "END", cannot be labels because
+
+    BEGIN:
+        $foo = 3
+
+is treated as a BEGIN block, for example.
 
 =head2 C<do/while>-like constructs
 

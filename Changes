@@ -1,5 +1,13 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.30
+    - Added a meticolous port of Text::Wrap in t/text_wrap.t.
+    - BEGIN blocks and friends didn't get their colon removed, fixed.
+    - The check of prototypes of subroutines didn't work with subroutines
+      with a package prefix, fixed.
+    - Uncuddling wasn't taking into account possible closing brackets
+      ending comments, fixed.
+
 0.25 Wed Jun  9 09:55:55 2004
     - Minor cleanup.
     - Better t/pass.t.

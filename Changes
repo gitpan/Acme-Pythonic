@@ -1,5 +1,12 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.12 Sat May 29 02:23:53 2004
+     - Added bubblesort in t/algorithms.t
+     - The code that inserts " {"s was breaking $#array, fixed.
+     - Changed SYNOPSIS.
+     - Fixed the documentation about backslashes in lines with comments.
+     - Fixed the link to LIMITATIONS.
+
 0.11 Fri May 28 01:09:45 2004
      - Regexps slightly more robust.
      - Fixed: There was a bug that might prevent the stack from being emptied.

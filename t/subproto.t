@@ -28,7 +28,8 @@ is_deeply \@array, [4, 2, 0]
 # ----------------------------------------------------------------------
 
 # Inspired by Acme::Don't
-sub ignore (&) {}
+sub ignore (&):
+    pass
 
 $n = 1
 if 1:

@@ -31,7 +31,8 @@ do:
     $k *= 2
     $k += 1
 # The module should be robust
-# to these comments after a do {}
+     # to these comments after a do {}
+          # no matter the leading whitespace
 while $k < 10
 
 is $k, 15

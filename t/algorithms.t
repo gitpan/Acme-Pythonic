@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Test::More 'no_plan';
-use Acme::Pythonic debug => 0;
+use Acme::Pythonic;
 
 use integer
 
@@ -16,9 +16,9 @@ sub exp_mod:
     my $r = 1
     while $j:
         if $j % 2:
-            $r = ($i*$r) % $n
+            $r = $i*$r % $n
         $j >>= 1
-        $i = ($i**2) % $n
+        $i = $i**2 % $n
     return $r
 
 is exp_mod(3, 2, 7), 2
@@ -83,3 +83,25 @@ is is_prime(99), 0
 is is_prime(647), 1
 is is_prime(4900), 0
 is is_prime(7919), 1
+
+
+# ----------------------------------------------------------------------
+
+sub bubblesort:
+    my $array = shift
+    for my $i = $#$array; $i; $i--:
+        for my $j = 1; $j <= $i; $j++:
+            if $array->[$j-1] > $array->[$j]:
+                @$array[$j, $j-1] = @$array[$j-1, $j]
+
+my @a = 1..10
+bubblesort(\@a)
+is_deeply \@a, [sort { $a <=> $b } @a]
+
+@a = (1,2,3,2,-1)
+bubblesort(\@a)
+is_deeply \@a, [sort { $a <=> $b } @a]
+
+@a = reverse 50.100
+bubblesort(\@a)
+is_deeply \@a, [sort { $a <=> $b } @a]

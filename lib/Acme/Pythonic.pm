@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG %SM);
-$VERSION = '0.11';
+$VERSION = '0.12';
 
 use Text::Tabs;
 
@@ -149,7 +149,7 @@ sub semicolonize_and_bracketize {
 
     # If unsure about the ending indentation level, add an extra
     # non-indented line to ensure the stack gets emptied.
-    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] !~ /^(?!\s|#)/;
+    push @$lines, '1; # added by Acme::Pythonic' if $lines->[-1] =~ /^(?:\s|\s*#)/;
     foreach my $line (@$lines) {
         next unless $line =~ /\S/; # skip blank lines
         next if $line =~ /^\s*#/;  # skip comments
@@ -169,7 +169,7 @@ sub semicolonize_and_bracketize {
             my ($label) = $$prev_line =~ /(?<![\$\@%&])($id)\s*$/;
             $line =~ s/^\s*pass\s*$//;
             push @stack, {indent => $indent, label => $label};
-            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*(?<!$)#)/ {/;
+            $$prev_line .= " {" unless $$prev_line =~ s/(?=\s*(?<!\$)#)/ {/;
         } elsif ($current_indent > $indent) {
             my $close = '';
             while ($current_indent > $indent) {
@@ -192,10 +192,9 @@ sub semicolonize_and_bracketize {
 
 
 # Removes the semicolon and newline in do {}; if EXPR; and friends.
-# Note that now an element of @$lines can contain a newline.
 sub fix_modifiers {
-    my $comments = qr/(?:\s*(?<!\$)#.*\n)*/;
-    s/};(?=$comments\s*(?:if|unless|while|until|for(?:each)?)\b.*;$)/} /mog;
+    my $comments = qr'(?:(?<!$)#.*\n\s*)*';
+    s/};\s*(?=$comments(?:if|unless|while|until|for(?:each)?)\b.*;$)/} /mog;
 }
 
 
@@ -216,16 +215,16 @@ Acme::Pythonic - Python whitespace conventions for Perl
 
  use Acme::Pythonic; # this semicolon yet needed
 
- sub exp_mod:
-     use integer
-     my ($i, $j, $n) = @_
-     my $r = 1
-     while $j:
-         if $j % 2:
-             $r = ($i*$r) % $n
-         $j >>= 1
-         $i = ($i**2) % $n
-     return $r
+ sub delete_edges:
+     my $G = shift
+     while my ($u, $v) = splice(@_, 0, 2):
+         if defined $v:
+             $G->delete_edge($u, $v)
+         else:
+             my @e = $G->edges($u)
+             while ($u, $v) = splice(@e, 0, 2):
+                 $G->delete_edge($u, $v)
+
 
 =head1 DESCRIPTION
 
@@ -296,7 +295,7 @@ and C<&>-prototyped subroutines can be used like this:
         $aux % 2
     reverse 0..5
 
-Nevertheless support for this has to be improved, see L<LIMITATIONS>.
+Nevertheless support for this has to be improved, see L</LIMITATIONS>.
 
 =head2 C<do/while>-like constructs
 
@@ -359,12 +358,11 @@ using a backslash at the end:
 
 and in that case the indentation of those additional lines is irrelevant.
 
-Unlike Python, we ignore backslashes that end a line in a comment:
+A backslash in a line with a comment won't be removed though:
 
-    my $a = 1  # this comment ends in a backslash, no problem \
+    my $foo = 1 + \  # comment (ERROR)
 
-There's no technical reason for this, only it does not belong to the
-whitespace conventions we are trying to mimick.
+In Python that's a syntax error.
 
 =head2 Ending commas
 
@@ -393,7 +391,7 @@ parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
 
-On the other hand, to use a subroutine with prototype C<(&)> you need to
+On the other hand, to use a subroutine with prototype C<&> you need to
 add the trailing semicolon in its own line by now:
 
     sub foo (&):

@@ -3,6 +3,7 @@ Makefile.PL
 MANIFEST
 README
 t/algorithms.t
+t/calculator.t
 t/jlines.t
 t/dangling.t
 t/do.t

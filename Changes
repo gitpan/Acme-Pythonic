@@ -1,5 +1,14 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.23 Mon Jun  7 02:56:29 2004
+    - Port of the calculator example in Stroustrup's in t/calculator.t
+    - Fixed: use constant HASHREF didn't get a semicolon
+    - In debug mode blanked out chunks are substituted with
+      the label "BLANKED_OUT" for easy identification
+    - The module got confused with newlines added by
+      Filter::Simple, fixed
+    - Removed an old, no longer used subroutine.
+
 0.22 Sat Jun  5 14:33:13 2004
     - Just Re-uploaded. Changes was not saved in 0.21.
 

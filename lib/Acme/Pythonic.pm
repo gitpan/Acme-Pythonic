@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.22';
+$VERSION = '0.23';
 
 use Text::Tabs;
 
@@ -24,6 +24,7 @@ FILTER_ONLY code => sub {
     unpythonize();
     uncuddle_elses_and_friends();
     if ($DEBUG) {
+        s/$;.*?$;/BLANKED_OUT/gs;
         print;
         $_ = '1;';
     }
@@ -40,6 +41,16 @@ my $tc = qr/(?<!\$)#.*/;
 
 # Tries its best at converting Pythonic code to Perl.
 sub unpythonize {
+    # Sometimes Filter::Simple adds newlines blanking out stuff, which
+    # interferes with Pythonic conventions.
+    my %bos = ();
+    my $count = 0;
+    s($;.{4}$;)(my $bo = "$;BLANKED_OUT_".$count++."$;";
+                $bos{$bo} = $&;
+                $bo)gose;
+
+    # In addition, we can now normalize newlines without breaking
+    # Filter::Simple's identifiers.
     normalize_newlines();
     my @lines  = split /\n/;
     return unless @lines;
@@ -76,6 +87,8 @@ sub unpythonize {
             $indent = length(expand($indent));
         }
 
+        # The last condition is a work-around. Filter::Simple adds
+        # newlines for the 10th, 11th, and 12th blanked out chunks.
         if ($line =~ /(?:,|=>)\s*$/ || $line =~ s/\\\s*$//) {
             ++$joining;
             next if $joining > 1; # if 1 we need yet to handle indentation
@@ -117,6 +130,7 @@ sub unpythonize {
             push @stack, {indent => $indent, sob => $sob};
             $$prev_nonblank .= " {" unless $$prev_nonblank =~ s/(?=\s*$tc)/ {/o;
         } elsif ($prev_indent > $indent) {
+            $$prev_nonblank =~ s/;$//; # to support use constant HASHREF
             do {
                 my $prev_sob = $stack[-1]{sob};
                 pop @stack;
@@ -133,6 +147,7 @@ sub unpythonize {
     }
 
     $_ = join "\n", @lines;
+    s/$;BLANKED_OUT_\d+$;/$bos{$&}/go;
 }
 
 
@@ -184,18 +199,11 @@ sub fortype_guesser {
 sub needs_semicolon {
     my $sob = shift;
     return 0 if !$sob;
-    return 1 if $sob =~ /^(do|sub|eval)$/;
+    return 1 if $sob =~ /^(do|sub|eval|constant)$/;
 
     my $proto = prototype("${CALLER}::$sob");
     return 0 if not defined $proto;
     return $proto =~ /^;?&$/;
-}
-
-
-# Removes the semicolon and newline in do {}; if EXPR; and friends.
-sub fix_modifiers {
-    my $comments = qr'(?:(?<!$)#.*\n\s*)*';
-    s/};\s*(?=$comments(?:if|unless|while|until|for(?:each)?)\b.*;$)/} /mog;
 }
 
 
@@ -425,6 +433,7 @@ parsing Perl, consider for instance:
 
     if keys %foo::bar ? keys %main:: : keys %foo::: print "foo\n"
 
+
 =head1 DEBUG
 
 You can pass a C<debug> flag to Acme::Pythonic like this:
@@ -439,8 +448,9 @@ The module tries to generate human readable code following L<perlstyle>.
 Blank lines and comments are preserved.
 
 This happens I<before> L<Filter::Simple> undoes the blanking out of
-PODs, strings, and regexps. Thus, those parts will be seen as C<$;>s in
-a row (C<$;> is C<\034> by default.)
+PODs, strings, and regexps. Those parts are marked with the label
+C<BLANKED_OUT> for easy identification.
+
 
 =head1 BUGS
 

@@ -5,7 +5,6 @@ use warnings;
 
 use Test::More 'no_plan';
 use Acme::Pythonic debug => 0;
-use Filter::tee 'foo'
 
 use integer
 

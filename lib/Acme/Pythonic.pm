@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.41';
+$VERSION = '0.42';
 
 use Text::Tabs;
 
@@ -530,7 +530,7 @@ PODs, strings, and regexps. Those parts are marked with the label
 C<BLANKED_OUT> for easy identification.
 
 Acme::Pythonic generates human readable Perl following L<perlstyle>, and
-tries meticolously to be respectful with the original source code.
+tries meticulously to be respectful with the original source code.
 Blank lines and comments are preserved.
 
 

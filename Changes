@@ -1,5 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.42 Fri Dec  3 09:39:08 2004
+    - Removed Filter::tee from a test, which made
+      make test fail since it is not a dependency
+    - A typo was corrected in the documentation.
+
 0.41 Thu Dec  2 20:18:26 2004
     - use constant HASHREF is no longer allowed in Pythonic
       form, that was a wrong choice.

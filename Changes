@@ -1,6 +1,10 @@
 Revision history for Perl extension Acme::Pythonic.
 
-0.30
+0.31 Sat Jun 12 14:58:32 2004
+    - Test::More required version relaxed to 0.45.
+    - Perl required version relaxed to 5.8.0.
+
+0.30 Fri Jun 11 19:09:20 2004
     - Added a meticolous port of Text::Wrap in t/text_wrap.t.
     - BEGIN blocks and friends didn't get their colon removed, fixed.
     - The check of prototypes of subroutines didn't work with subroutines

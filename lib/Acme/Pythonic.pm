@@ -3,12 +3,12 @@ package Acme::Pythonic;
 # Please, if you tested it in some earlier version of Perl and works let
 # me know! The versions of Filter::Simple, Text::Tabs, and Test::More
 # would be useful as well.
-use 5.008002;
+use 5.008000;
 use strict;
 use warnings;
 
 use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.30';
+$VERSION = '0.31';
 
 use Text::Tabs;
 

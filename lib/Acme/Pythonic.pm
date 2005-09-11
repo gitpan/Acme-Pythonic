@@ -7,8 +7,8 @@ use 5.006_001;
 use strict;
 use warnings;
 
-use vars qw($VERSION $DEBUG $CALLER);
-$VERSION = '0.43';
+our ($VERSION, $DEBUG, $CALLER);
+$VERSION = '0.44';
 
 use Text::Tabs;
 
@@ -22,7 +22,7 @@ sub import {
 use Filter::Simple;
 FILTER_ONLY code => sub {
     unpythonize();
-    uncuddle_elses_and_friends();
+    cuddle_elses_and_friends();
     if ($DEBUG) {
         s/$Filter::Simple::placeholder/BLANKED_OUT/g;
         print;
@@ -98,7 +98,7 @@ sub unpythonize {
         # block, mean some map, or &-sub call, etc.
         #
         # We check the parity of the number of ending colons to try to
-        # avoid breaking
+        # avoid breaking things like
         #
         #    print for keys %main::
         #
@@ -158,8 +158,8 @@ sub unpythonize {
 # In addition, it guarantees make test works no matter the platform.
 sub normalize_newlines {
     s/\015\012/\n/g;
-    tr/\015/\n/;
-    tr/\012/\n/;
+    tr/\015/\n/ unless "\n" eq "\015";
+    tr/\012/\n/ unless "\n" eq "\012";
 }
 
 
@@ -210,7 +210,7 @@ sub needs_semicolon {
 
 
 # We follow perlstyle here, as we did until now.
-sub uncuddle_elses_and_friends {
+sub cuddle_elses_and_friends {
     s/^([ \t]*})\s*(?=(?:elsif|else|continue)\b)/$1 /gm;
     s/^([ \t]*})\s*(?=(?:if|unless|while|until|for|foreach)\b(?!.*{$tc?$))/$1 /gm;
 }
@@ -267,7 +267,7 @@ semicolons.
 
 Additionally, the filter understands the keywords C<pass> and C<in>.
 
-    foreach my $n in 1..100:
+    for my $n in 1..100:
         while $n != 1:
             if $n % 2:
                 $n = 3*$n + 1
@@ -302,11 +302,12 @@ or rather
         do_that();
     }
 
-where the second half is a labeled block, and so C<do_that()> is unconditionally executed.
+The former is a regular if/else, whereas the latter consists of an if and a
+labeled block, so C<do_that()> is unconditionally executed.
 
 To solve this B<labels in Pythonic code have to be in upper case>.
 
-In addition, to be able to write a BEGIN block as
+In addition, to be able to write BEGIN blocks and friends this way:
 
     BEGIN:
         $foo = 3
@@ -329,8 +330,8 @@ And here we have a labeled block:
         redo FOO
 
 Note that if we put a label in the line before in a control structure
-indentation matters. This would be a non-equivalent reformat of the
-example above:
+indentation matters, because that's what marks blocks. For instance, this
+would be a non-equivalent reformat of the example above:
 
     OUTER:
         for my $wid in @ary1:               # NOT WHAT WE WANT
@@ -339,12 +340,26 @@ example above:
                 next OUTER if $wid > $jet
                 $wid += $jet
 
-Since the first C<for> is indented with respect to C<OUTER:> we get a
-labeled block containing a C<for> loop, instead of a labeled C<for>.
+Since the first C<for> is indented with respect to the label C<OUTER:> we get a
+labeled block containing a C<for> loop, instead of a labeled C<for>. This is
+the interpretation in regular Perl: 
+
+    OUTER: {
+        for my $wid (@ary1) {               # NOT WHAT WE WANT
+            INNER:
+            for my $jet (@ary2) {           # GOOD, ALIGNED
+                next OUTER if $wid > $jet;
+                $wid += $jet;
+            }
+        }
+    }
+
+The consequence is that C<next OUTER> goes outside the outer for loop and thus
+it is restarted, instead of continued.
 
 =head2 C<do/while>-like constructs
 
-Acme::Pythonic tries to detect statement modifiers after a do BLOCK. Thus
+Acme::Pythonic tries to detect statement modifiers after a C<do BLOCK>. Thus
 
     do:
         do_something()
@@ -414,11 +429,8 @@ C<&>-prototyped subroutines can be used like this:
     reverse 0..5
 
 If the prototype is exactly C<&>, however, Acme::Pythonic needs to know
-it because it might need to add a semicolon after the closing bracket in
-the generated code.
-
-Thus, if any module defines such a subroutine C<use()> it I<before>
-Acme::Pythonic:
+it in advance. Thus, if any module defines such a subroutine C<use()> it
+I<before> Acme::Pythonic:
 
     use Thread 'async';
     use Acme::Pythonic; # now Acme::Pythonic knows async() has prototype "&"
@@ -427,8 +439,8 @@ Acme::Pythonic:
         do_this()
         do_that()
 
-If such a subroutine is defined in the very code being filtered declare
-it before Acme::Pythonic is C<use()>d:
+If such a subroutine is defined in the very code being filtered we need to
+declare it before Acme::Pythonic is C<use()>d:
 
     sub twice (&);      # declaration
     use Acme::Pythonic; # now Acme::Pythonic knows twice() has prototype "&"
@@ -441,8 +453,8 @@ it before Acme::Pythonic is C<use()>d:
     twice:
          do_this_twice()
 
-Nevertheless, the module is not smart enough to handle optional
-arguments as in a subroutine with prototype C<&;$>.
+Nevertheless, the module is not smart enough to handle optional arguments as in
+a subroutine with prototype C<&;$>.
 
 
 =head2 Line joining

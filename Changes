@@ -1,5 +1,12 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.44 Sun Sep 11 19:24:00 2005
+    - Minor tweaks.
+    - Added ports of some programs of HOP in t/hop.t.
+    - POD coverage is tested in t/pod-coverage.t.c
+    - Testing by Test::Pod added in t/pod.t.
+    - t/pod.t renamed to t/with_pod.t.
+
 0.43 Sun Jan  2 02:02:49 2005
     - Uncuddles do {} modifier.
     - Required Perl version relaxed to 5.6.1.

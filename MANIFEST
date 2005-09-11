@@ -2,8 +2,6 @@ Changes
 Makefile.PL
 MANIFEST
 README
-t/algorithms.t
-t/calculator.t
 t/jlines.t
 t/dangling.t
 t/do.t
@@ -16,6 +14,7 @@ t/map.t
 t/noindent.t
 t/pass.t
 t/pod.t
+t/pod-coverage.t
 t/sub.t
 t/subproto.t
 t/text_wrap.t
@@ -24,5 +23,9 @@ t/until.t
 t/use.t
 t/while.t
 t/constant.t
+t/algorithms.t
+t/calculator.t
+t/hop.t
+t/with_pod.t
 lib/Acme/Pythonic.pm
 META.yml                                 Module meta-data (added by MakeMaker)

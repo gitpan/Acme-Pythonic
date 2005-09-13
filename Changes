@@ -1,9 +1,13 @@
 Revision history for Perl extension Acme::Pythonic.
 
+0.45 Tue Sep 13 17:26:43 CEST 2005
+    - Fixes building errors due to the addition of metadata files by Apple's
+      enhaced tar.
+
 0.44 Sun Sep 11 19:24:00 2005
     - Minor tweaks.
     - Added ports of some programs of HOP in t/hop.t.
-    - POD coverage is tested in t/pod-coverage.t.c
+    - POD coverage is tested in t/pod-coverage.t.
     - Testing by Test::Pod added in t/pod.t.
     - t/pod.t renamed to t/with_pod.t.
 

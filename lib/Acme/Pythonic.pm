@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 our ($VERSION, $DEBUG, $CALLER);
-$VERSION = '0.45';
+$VERSION = '0.46';
 
 use Text::Tabs;
 
@@ -33,7 +33,7 @@ FILTER_ONLY code => sub {
 
 # This regexp matches a 7-bit ASCII identifier. We use atomic grouping
 # because an identifier cannot be backtracked.
-my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/; # '
+my $id = qr/(?>[_a-zA-Z](?:[_a-zA-Z0-9']|::)*)/;
 
 # Shorthand to put an eventual trailing comment in some regexps.
 my $tc = qr/(?<!\$)#.*/;
@@ -69,7 +69,7 @@ sub unpythonize {
         $joining,             # flag: are we joining lines?
         $unbalanced_paren,    # flag: we opened a paren that remains to be closed
         @stack,               # keeps track of indentation stuff
-       );
+    );
 
     @stack = ();
     foreach my $line (@lines) {
@@ -342,7 +342,7 @@ would be a non-equivalent reformat of the example above:
 
 Since the first C<for> is indented with respect to the label C<OUTER:> we get a
 labeled block containing a C<for> loop, instead of a labeled C<for>. This is
-the interpretation in regular Perl: 
+the interpretation in regular Perl:
 
     OUTER: {
         for my $wid (@ary1) {               # NOT WHAT WE WANT

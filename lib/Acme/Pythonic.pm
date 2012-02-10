@@ -8,7 +8,7 @@ use strict;
 use warnings;
 
 our ($VERSION, $DEBUG, $CALLER);
-$VERSION = '0.46';
+$VERSION = '0.47';
 
 use Text::Tabs;
 
@@ -581,7 +581,7 @@ Xavier Noria (FXN), E<lt>fxn@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2004-2005 by Xavier Noria
+Copyright (C) 2004-2012 by Xavier Noria
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.2 or,
